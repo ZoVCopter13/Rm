@@ -576,7 +576,6 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
    end
 })
 
--- ========== BUNKER RAT ESP ==========
 local bunkerRatEspEnabled = false
 local bunkerRatEspConnections = {}
 local bunkerRatList = {}
@@ -621,9 +620,8 @@ local ButtonBunkerRatESP = VisualsTab:CreateButton({
             task.spawn(function()
                 local function addESPToRat(rat)
                     if not rat or not bunkerRatEspEnabled or bunkerRatList[rat] then return end
-                    highlightBunkerRatParts(rat, Color3.fromRGB(139, 69, 19), "BunkerRatESP") -- Коричневый цвет
+                    highlightBunkerRatParts(rat, Color3.fromRGB(139, 69, 19), "BunkerRatESP")
                     bunkerRatList[rat] = true
-                    print("🐀 Bunker Rat ESP added")
                 end
                 
                 local function findRat()
@@ -681,20 +679,17 @@ local ButtonBunkerRatESP = VisualsTab:CreateButton({
     end
 })
 
--- Кнопка для проверки наличия крысы
 VisualsTab:CreateButton({
     Name = "Check Bunker Rat",
     Callback = function()
         local rat = workspace:FindFirstChild("BunkerRat")
         if rat then
             notify("Bunker Rat", "Found in workspace", 2)
-            print("🐀 Bunker Rat found at: " .. tostring(rat:GetFullName()))
         else
             local found = false
             for _, obj in pairs(workspace:GetDescendants()) do
                 if obj.Name == "BunkerRat" and obj:IsA("Model") then
                     notify("Bunker Rat", "Found in descendants", 2)
-                    print("🐀 Bunker Rat found at: " .. obj:GetFullName())
                     found = true
                     break
                 end
@@ -1220,7 +1215,6 @@ Night3Tab:CreateButton({
     end
 })
 
--- Mansion main tab
 local MansionMainTab = Window:CreateTab("main mansion", 4483362458)
 
 local removeDangerRunning = false
@@ -1313,7 +1307,7 @@ local function startKidAlert()
                 kidDetected = true
                 
                 for i = 1, 5 do
-                    mansionNotify("⚠️ KID ALERT ⚠️", "Kid is in the mansion! (Warning " .. i .. "/5)", 2)
+                    mansionNotify("KID ALERT", "Kid is in the mansion! (Warning " .. i .. "/5)", 2)
                     task.wait(1)
                 end
                 
@@ -1369,7 +1363,6 @@ MansionMainTab:CreateButton({
     end
 })
 
--- Mansion visuals tab
 local MansionVisualsTab = Window:CreateTab("mansion visuals", 4483362458)
 
 local mansionFullbrightEnabled = false
@@ -1637,7 +1630,6 @@ local ButtonDoorMonsterESP = MansionVisualsTab:CreateButton({
     end
 })
 
--- Mansion teleports tab
 local MansionTeleportsTab = Window:CreateTab("mansion teleports", 4483362458)
 
 local function mansionTeleport(position, matrix, name)
@@ -1697,7 +1689,6 @@ MansionTeleportsTab:CreateButton({
     end
 })
 
--- Bunker tab
 local BunkerTab = Window:CreateTab("bunker", 4483362458)
 
 local function bunkerTeleport(pos, matrix, name)
@@ -1713,7 +1704,7 @@ local function bunkerTeleport(pos, matrix, name)
 end
 
 BunkerTab:CreateButton({
-    Name = "⚡ Generator",
+    Name = "Generator",
     Callback = function()
         bunkerTeleport(
             Vector3.new(-29.2898579, 12.9999971, -153.711624),
@@ -1733,7 +1724,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🖥️ Panel 1",
+    Name = "Panel 1",
     Callback = function()
         bunkerTeleport(
             Vector3.new(-80.2965317, 19.9999943, -137.576843),
@@ -1748,7 +1739,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🖥️ Panel 2",
+    Name = "Panel 2",
     Callback = function()
         bunkerTeleport(
             Vector3.new(-44.1996498, 19.9999943, 3.13688135),
@@ -1763,7 +1754,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🖥️ Panel 3",
+    Name = "Panel 3",
     Callback = function()
         bunkerTeleport(
             Vector3.new(46.2096443, 23.9999962, -129.706573),
@@ -1778,7 +1769,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🖥️ Panel 4",
+    Name = "Panel 4",
     Callback = function()
         bunkerTeleport(
             Vector3.new(15.8920517, 19.9999943, -7.63388395),
@@ -1798,7 +1789,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🧴 Canister 1",
+    Name = "Canister 1",
     Callback = function()
         bunkerTeleport(
             Vector3.new(-77.3688507, 19.9999943, -115.703163),
@@ -1813,7 +1804,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🧴 Canister 2",
+    Name = "Canister 2",
     Callback = function()
         bunkerTeleport(
             Vector3.new(-44.6160164, 19.9999943, 2.17054081),
@@ -1828,7 +1819,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🧴 Canister 3",
+    Name = "Canister 3",
     Callback = function()
         bunkerTeleport(
             Vector3.new(-33.8688202, 19.9999943, 3.15866494),
@@ -1843,7 +1834,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🧴 Canister 4",
+    Name = "Canister 4",
     Callback = function()
         bunkerTeleport(
             Vector3.new(18.0693588, 23.9999943, -52.2483139),
@@ -1858,7 +1849,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🧴 Canister 5",
+    Name = "Canister 5",
     Callback = function()
         bunkerTeleport(
             Vector3.new(16.1389828, 23.9999943, -118.857544),
@@ -1873,7 +1864,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🧴 Canister 6",
+    Name = "Canister 6",
     Callback = function()
         bunkerTeleport(
             Vector3.new(82.5169907, 16.9999943, -2.82180023),
@@ -1888,7 +1879,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🧴 Canister 7",
+    Name = "Canister 7",
     Callback = function()
         bunkerTeleport(
             Vector3.new(-33.8688202, 19.9999943, 3.15866494),
@@ -1908,7 +1899,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🏁 End Point",
+    Name = "End Point",
     Callback = function()
         bunkerTeleport(
             Vector3.new(16.3039112, 16.9999943, 71.6612854),
@@ -1923,7 +1914,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "💨 Ventilation",
+    Name = "Ventilation",
     Callback = function()
         bunkerTeleport(
             Vector3.new(68.2763901, 16.9999943, 73.0313492),
@@ -1938,7 +1929,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "🔑 Key",
+    Name = "Key",
     Callback = function()
         bunkerTeleport(
             Vector3.new(22.4428558, 23.9999943, -124.594475),
@@ -1951,7 +1942,3 @@ BunkerTab:CreateButton({
         )
     end
 })
-
-print("✅ RM script loaded with Bunker tab and Bunker Rat ESP")
-print("📍 Total locations in bunker: 15")
-print("🐀 Bunker Rat ESP added to Visuals tab")
