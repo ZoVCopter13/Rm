@@ -213,7 +213,7 @@ local ButtonDisableCold = Tab:CreateButton({
 local Button4 = Tab:CreateButton({
    Name = "Info",
    Callback = function()
-       notify("Info", "script ZOVCOPTER by NAGIEV\nAdded: Disable Cold, Auto Fix Panels, ESP (Mutant, Zombie, Stalker, Spider, Bunker Rat)", 5)
+       notify("Info", "script ZOVCOPTER by NAGIEV\nAdded: Disable Cold, Auto Fix Panels, ESP, Bunker Rat", 5)
    end
 })
 
@@ -1940,5 +1940,572 @@ BunkerTab:CreateButton({
             },
             "Key"
         )
+    end
+})
+
+local ItemGrabber1 = Window:CreateTab("item graber 1", 4483362458)
+
+local function itemNotify1(msg, duration)
+    Rayfield:Notify({
+        Title = "Item Grabber",
+        Content = msg,
+        Duration = duration or 2,
+        Image = 4483362458
+    })
+end
+
+local function teleportToItem1(cf, name)
+    local player = game.Players.LocalPlayer
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        player.Character.HumanoidRootPart.CFrame = cf
+        itemNotify1("Teleported to " .. name, 1)
+        return true
+    else
+        itemNotify1("Error: Character not found", 2)
+        return false
+    end
+end
+
+local spotIndexes1 = {2, 9, 3, 4, 6, 7, 8, 5, 10}
+local itemNames1 = {"Wrench", "Medkit", "Hammer", "BloxyCola", "Battery"}
+
+local function findItemInSpot1(spotIndex, itemName)
+    local itemSpots = workspace:FindFirstChild("ItemSpots")
+    if not itemSpots then return nil end
+    
+    local spot = itemSpots:GetChildren()[spotIndex]
+    if not spot then return nil end
+    
+    local item = spot:FindFirstChild(itemName)
+    if not item then return nil end
+    
+    local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
+    if target and target:IsA("BasePart") then
+        return {
+            spot = spotIndex,
+            cframe = target.CFrame,
+            name = string.format("%s (Spot %d)", itemName, spotIndex)
+        }
+    end
+    return nil
+end
+
+local function findItemInAllSpots1(itemName)
+    local results = {}
+    for _, spotIndex in ipairs(spotIndexes1) do
+        local item = findItemInSpot1(spotIndex, itemName)
+        if item then table.insert(results, item) end
+    end
+    return results
+end
+
+local function findAllItems1()
+    local results = {}
+    for _, spotIndex in ipairs(spotIndexes1) do
+        for _, itemName in ipairs(itemNames1) do
+            local item = findItemInSpot1(spotIndex, itemName)
+            if item then table.insert(results, item) end
+        end
+    end
+    return results
+end
+
+
+
+
+
+
+
+
+
+ItemGrabber1:CreateButton({
+    Name = "Wrench",
+    Callback = function()
+        local results = findItemInAllSpots1("Wrench")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem1(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify1("No Wrench found", 2)
+        end
+    end
+})
+
+
+
+ItemGrabber1:CreateButton({
+    Name = "Medkit",
+    Callback = function()
+        local results = findItemInAllSpots1("Medkit")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem1(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify1("No Medkit found", 2)
+        end
+    end
+})
+
+
+ItemGrabber1:CreateButton({
+    Name = "Hammer",
+    Callback = function()
+        local results = findItemInAllSpots1("Hammer")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem1(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify1("No Hammer found", 2)
+        end
+    end
+})
+
+
+
+ItemGrabber1:CreateButton({
+    Name = "BloxyCola",
+    Callback = function()
+        local results = findItemInAllSpots1("BloxyCola")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem1(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify1("No BloxyCola found", 2)
+        end
+    end
+})
+
+
+
+
+ItemGrabber1:CreateButton({
+    Name = "Battery",
+    Callback = function()
+        local results = findItemInAllSpots1("Battery")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem1(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify1("No Battery found", 2)
+        end
+    end
+})
+
+ItemGrabber1:CreateButton({
+    Name = "Scan All Spots",
+    Callback = function()
+        local itemSpots = workspace:FindFirstChild("ItemSpots")
+        if not itemSpots then
+            itemNotify1("ItemSpots not found", 2)
+            return
+        end
+        
+        local totalFound = 0
+        for _, spotIndex in ipairs(spotIndexes1) do
+            local spot = itemSpots:GetChildren()[spotIndex]
+            if spot then
+                for _, itemName in ipairs(itemNames1) do
+                    local item = spot:FindFirstChild(itemName)
+                    if item then
+                        local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
+                        if target then
+                            totalFound = totalFound + 1
+                        end
+                    end
+                end
+            end
+        end
+        itemNotify1("Check console (F9) for details", 3)
+    end
+})
+
+local ItemGrabber2 = Window:CreateTab("item graber 2", 4483362458)
+
+local function itemNotify2(msg, duration)
+    Rayfield:Notify({
+        Title = "Item Grabber Night 2",
+        Content = msg,
+        Duration = duration or 2,
+        Image = 4483362458
+    })
+end
+
+local function teleportToItem2(cf, name)
+    local player = game.Players.LocalPlayer
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        player.Character.HumanoidRootPart.CFrame = cf
+        itemNotify2("Teleported to " .. name, 1)
+        return true
+    else
+        itemNotify2("Error: Character not found", 2)
+        return false
+    end
+end
+
+local spotIndexes2 = {3, 15, 8, 2, 13, 12, 11, 10, 9, 14, 7, 6, 5, 4}
+local itemNames2 = {"Wrench", "Medkit", "Hammer", "BloxyCola", "Battery"}
+
+local function findItemInSpot2(spotIndex, itemName)
+    local itemSpots = workspace:FindFirstChild("ItemSpots")
+    if not itemSpots then return nil end
+    
+    local spot = itemSpots:GetChildren()[spotIndex]
+    if not spot then return nil end
+    
+    local item = spot:FindFirstChild(itemName)
+    if not item then return nil end
+    
+    local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
+    if target and target:IsA("BasePart") then
+        return {
+            spot = spotIndex,
+            cframe = target.CFrame,
+            name = string.format("%s (Spot %d)", itemName, spotIndex)
+        }
+    end
+    return nil
+end
+
+local function findItemInAllSpots2(itemName)
+    local results = {}
+    for _, spotIndex in ipairs(spotIndexes2) do
+        local item = findItemInSpot2(spotIndex, itemName)
+        if item then table.insert(results, item) end
+    end
+    return results
+end
+
+local function findAllItems2()
+    local results = {}
+    for _, spotIndex in ipairs(spotIndexes2) do
+        for _, itemName in ipairs(itemNames2) do
+            local item = findItemInSpot2(spotIndex, itemName)
+            if item then table.insert(results, item) end
+        end
+    end
+    return results
+end
+
+
+
+
+
+
+
+
+ItemGrabber2:CreateButton({
+    Name = "Wrench",
+    Callback = function()
+        local results = findItemInAllSpots2("Wrench")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem2(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify2("No Wrench found", 2)
+        end
+    end
+})
+
+
+
+ItemGrabber2:CreateButton({
+    Name = "Medkit",
+    Callback = function()
+        local results = findItemInAllSpots2("Medkit")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem2(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify2("No Medkit found", 2)
+        end
+    end
+})
+
+
+
+ItemGrabber2:CreateButton({
+    Name = "Hammer",
+    Callback = function()
+        local results = findItemInAllSpots2("Hammer")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem2(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify2("No Hammer found", 2)
+        end
+    end
+})
+
+
+
+
+ItemGrabber2:CreateButton({
+    Name = "BloxyCola",
+    Callback = function()
+        local results = findItemInAllSpots2("BloxyCola")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem2(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify2("No BloxyCola found", 2)
+        end
+    end
+})
+
+
+
+ItemGrabber2:CreateButton({
+    Name = "Battery",
+    Callback = function()
+        local results = findItemInAllSpots2("Battery")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem2(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify2("No Battery found", 2)
+        end
+    end
+})
+
+ItemGrabber2:CreateButton({
+    Name = "Scan All Spots",
+    Callback = function()
+        local itemSpots = workspace:FindFirstChild("ItemSpots")
+        if not itemSpots then
+            itemNotify2("ItemSpots not found", 2)
+            return
+        end
+        
+        local totalFound = 0
+        for _, spotIndex in ipairs(spotIndexes2) do
+            local spot = itemSpots:GetChildren()[spotIndex]
+            if spot then
+                for _, itemName in ipairs(itemNames2) do
+                    local item = spot:FindFirstChild(itemName)
+                    if item then
+                        local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
+                        if target then
+                            totalFound = totalFound + 1
+                        end
+                    end
+                end
+            end
+        end
+        itemNotify2("Check console (F9) for details", 3)
+    end
+})
+
+local ItemGrabber3 = Window:CreateTab("item graber 3", 4483362458)
+
+local function itemNotify3(msg, duration)
+    Rayfield:Notify({
+        Title = "Item Grabber Night 3",
+        Content = msg,
+        Duration = duration or 2,
+        Image = 4483362458
+    })
+end
+
+local function teleportToItem3(cf, name)
+    local player = game.Players.LocalPlayer
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        player.Character.HumanoidRootPart.CFrame = cf
+        itemNotify3("Teleported to " .. name, 1)
+        return true
+    else
+        itemNotify3("Error: Character not found", 2)
+        return false
+    end
+end
+
+local spotIndexes3 = {14, 7, 2, 12, 11, 10, 9, 8, 13, 6, 5, 4, 3}
+local itemNames3 = {"Camera", "BloxyCola", "Marshmallow", "Battery"}
+
+local function findItemInSpot3(spotIndex, itemName)
+    local itemSpots = workspace:FindFirstChild("ItemSpots")
+    if not itemSpots then return nil end
+    
+    local spot
+    if spotIndex == "Spot" then
+        spot = itemSpots:FindFirstChild("Spot")
+    else
+        spot = itemSpots:GetChildren()[spotIndex]
+    end
+    
+    if not spot then return nil end
+    
+    local item = spot:FindFirstChild(itemName)
+    if not item then return nil end
+    
+    local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
+    if target and target:IsA("BasePart") then
+        local spotName = (spotIndex == "Spot") and "Spot" or "Spot " .. spotIndex
+        return {
+            spot = spotIndex,
+            cframe = target.CFrame,
+            name = string.format("%s (%s)", itemName, spotName)
+        }
+    end
+    return nil
+end
+
+local function findItemInAllSpots3(itemName)
+    local results = {}
+    for _, spotIndex in ipairs(spotIndexes3) do
+        local item = findItemInSpot3(spotIndex, itemName)
+        if item then table.insert(results, item) end
+    end
+    local spotItem = findItemInSpot3("Spot", itemName)
+    if spotItem then table.insert(results, spotItem) end
+    return results
+end
+
+local function findAllItems3()
+    local results = {}
+    for _, spotIndex in ipairs(spotIndexes3) do
+        for _, itemName in ipairs(itemNames3) do
+            local item = findItemInSpot3(spotIndex, itemName)
+            if item then table.insert(results, item) end
+        end
+    end
+    for _, itemName in ipairs(itemNames3) do
+        local spotItem = findItemInSpot3("Spot", itemName)
+        if spotItem then table.insert(results, spotItem) end
+    end
+    return results
+end
+
+
+
+
+
+
+
+
+ItemGrabber3:CreateButton({
+    Name = "Camera",
+    Callback = function()
+        local results = findItemInAllSpots3("Camera")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem3(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify3("No Camera found", 2)
+        end
+    end
+})
+
+
+
+ItemGrabber3:CreateButton({
+    Name = "BloxyCola",
+    Callback = function()
+        local results = findItemInAllSpots3("BloxyCola")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem3(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify3("No BloxyCola found", 2)
+        end
+    end
+})
+
+
+
+ItemGrabber3:CreateButton({
+    Name = "Marshmallow",
+    Callback = function()
+        local results = findItemInAllSpots3("Marshmallow")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem3(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify3("No Marshmallow found", 2)
+        end
+    end
+})
+
+
+
+ItemGrabber3:CreateButton({
+    Name = "Battery",
+    Callback = function()
+        local results = findItemInAllSpots3("Battery")
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem3(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        else
+            itemNotify3("No Battery found", 2)
+        end
+    end
+})
+
+ItemGrabber3:CreateButton({
+    Name = "Scan All Spots",
+    Callback = function()
+        local itemSpots = workspace:FindFirstChild("ItemSpots")
+        if not itemSpots then
+            itemNotify3("ItemSpots not found", 2)
+            return
+        end
+        
+        local totalFound = 0
+        for _, spotIndex in ipairs(spotIndexes3) do
+            local spot = itemSpots:GetChildren()[spotIndex]
+            if spot then
+                for _, itemName in ipairs(itemNames3) do
+                    local item = spot:FindFirstChild(itemName)
+                    if item then
+                        local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
+                        if target then
+                            totalFound = totalFound + 1
+                        end
+                    end
+                end
+            end
+        end
+        
+        local spotSpecial = itemSpots:FindFirstChild("Spot")
+        if spotSpecial then
+            for _, itemName in ipairs(itemNames3) do
+                local item = spotSpecial:FindFirstChild(itemName)
+                if item then
+                    local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
+                    if target then
+                        totalFound = totalFound + 1
+                    end
+                end
+            end
+        end
+        
+        itemNotify3("Check console (F9) for details", 3)
     end
 })
