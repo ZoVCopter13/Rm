@@ -33,12 +33,30 @@ local Window = Rayfield:CreateWindow({
 })
 
 local Tab = Window:CreateTab("main", 4483362458)
+local PlayerTab = Window:CreateTab("player", 4483362458)
+local VisualsTab = Window:CreateTab("Visuals", 4483362458)
+local TeleportsTab = Window:CreateTab("teleports 1", 4483362458)
+local NightTab = Window:CreateTab("night 2", 4483362458)
+local Night3Tab = Window:CreateTab("night 3 teleports", 4483362458)
+local SpiritHelperTab = Window:CreateTab("spirit helper", 4483362458)
+local BloodmoonTab = Window:CreateTab("bloodmoon", 4483362458)
+local SpiritVisualsTab = Window:CreateTab("spirit visuals", 4483362458)
+local MansionMainTab = Window:CreateTab("main mansion", 4483362458)
+local MansionVisualsTab = Window:CreateTab("mansion visuals", 4483362458)
+local MansionTeleportsTab = Window:CreateTab("mansion teleports", 4483362458)
+local BunkerTab = Window:CreateTab("bunker", 4483362458)
+local ItemGrabber1 = Window:CreateTab("item graber 1", 4483362458)
+local ItemGrabber2 = Window:CreateTab("item graber 2", 4483362458)
+local ItemGrabber3 = Window:CreateTab("item graber 3", 4483362458)
 
-local sprintLoopRunning = false
 local oxygenLoopRunning = false
+local coldDisabled = false
+local sprintLoopRunning = false
 local noclipEnabled = false
 local noclipConnections = {}
-local coldDisabled = false
+local tpwalking = false
+local tpwalkSpeed = 4
+local RunService = game:GetService("RunService")
 
 local function notify(title, content, duration)
     Rayfield:Notify({
@@ -48,38 +66,40 @@ local function notify(title, content, duration)
     })
 end
 
-local Button1 = Tab:CreateButton({
-   Name = "Infinity sprint",
-   Callback = function()
-       sprintLoopRunning = not sprintLoopRunning
-       notify("Infinity sprint", sprintLoopRunning and "on" or "off")
+local function startTPWalk(speed)
+    tpwalking = true
+    tpwalkSpeed = speed or 4
+    local player = game.Players.LocalPlayer
+    task.spawn(function()
+        while tpwalking do
+            local char = player.Character
+            local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+            if not hum or not hum.Parent then
+                tpwalking = false
+                break
+            end
+            local delta = RunService.Heartbeat:Wait()
+            if hum.MoveDirection.Magnitude > 0 then
+                pcall(function()
+                    char:TranslateBy(hum.MoveDirection * tpwalkSpeed * delta * 10)
+                end)
+            end
+            if not player.Character or player.Character ~= char then
+                tpwalking = false
+            end
+        end
+    end)
+end
 
-       if sprintLoopRunning then
-           task.spawn(function()
-               while sprintLoopRunning do
-                   task.wait(0.1)
-                   local player = game.Players.LocalPlayer
-                   if player and player.Character then
-                       local sprint = player.Character:FindFirstChild("Sprint")
-                       if sprint then
-                           local stamina = sprint:FindFirstChild("Stam")
-                           if stamina then
-                               stamina.Value = 90000
-                           end
-                       end
-                   end
-               end
-           end)
-       end
-   end
-})
+local function stopTPWalk()
+    tpwalking = false
+end
 
-local Button2 = Tab:CreateButton({
+local ButtonOxygen = Tab:CreateButton({
    Name = "Infinity oxygen",
    Callback = function()
        oxygenLoopRunning = not oxygenLoopRunning
        notify("Infinity oxygen", oxygenLoopRunning and "on" or "off")
-
        if oxygenLoopRunning then
            task.spawn(function()
                while oxygenLoopRunning do
@@ -97,78 +117,13 @@ local Button2 = Tab:CreateButton({
    end
 })
 
-local Button3 = Tab:CreateButton({
-   Name = "Noclip",
-   Callback = function()
-       noclipEnabled = not noclipEnabled
-       notify("Noclip", noclipEnabled and "on" or "off")
-
-       if noclipEnabled then
-           task.spawn(function()
-               local player = game.Players.LocalPlayer
-               if not player then return end
-
-               local function setNoCollisions(character)
-                   if not character then return end
-
-                   for _, part in pairs(character:GetDescendants()) do
-                       if part:IsA("BasePart") then
-                           part.CanCollide = false
-                           part.CanTouch = false
-                       end
-                   end
-               end
-
-               if player.Character then
-                   setNoCollisions(player.Character)
-               end
-
-               local charAddedConn = player.CharacterAdded:Connect(function(character)
-                   task.wait(0.5)
-                   if noclipEnabled then
-                       setNoCollisions(character)
-                   end
-               end)
-               table.insert(noclipConnections, charAddedConn)
-
-               local heartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
-                   if not noclipEnabled then
-                       for _, conn in ipairs(noclipConnections) do
-                           conn:Disconnect()
-                       end
-                       noclipConnections = {}
-                       return
-                   end
-
-                   if player and player.Character then
-                       for _, part in pairs(player.Character:GetDescendants()) do
-                           if part:IsA("BasePart") and (part.CanCollide or part.CanTouch) then
-                               part.CanCollide = false
-                               part.CanTouch = false
-                           end
-                       end
-                   end
-               end)
-               table.insert(noclipConnections, heartbeatConn)
-           end)
-       else
-           for _, conn in ipairs(noclipConnections) do
-               conn:Disconnect()
-           end
-           noclipConnections = {}
-       end
-   end
-})
-
 local ButtonDisableCold = Tab:CreateButton({
    Name = "disable cold",
    Callback = function()
        coldDisabled = not coldDisabled
-
        local success, result = pcall(function()
            local replicatedStorage = game:GetService("ReplicatedStorage")
            local gameState = replicatedStorage:FindFirstChild("GameState")
-
            if gameState then
                local blizzard = gameState:FindFirstChild("Blizzard")
                if blizzard then
@@ -181,7 +136,6 @@ local ButtonDisableCold = Tab:CreateButton({
                return false, "GameState not found"
            end
        end)
-
        if success and result == true then
            notify("Disable Cold", "Cold effect disabled", 2)
        else
@@ -191,7 +145,6 @@ local ButtonDisableCold = Tab:CreateButton({
                    blizzard.Value = false
                    return true
                end
-
                for _, obj in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
                    if obj.Name == "Blizzard" and obj:IsA("BoolValue") then
                        obj.Value = false
@@ -200,7 +153,6 @@ local ButtonDisableCold = Tab:CreateButton({
                end
                return false
            end)
-
            if altSuccess then
                notify("Disable Cold", "Cold effect disabled", 2)
            else
@@ -210,21 +162,176 @@ local ButtonDisableCold = Tab:CreateButton({
    end
 })
 
-local Button4 = Tab:CreateButton({
+local ButtonInfo = Tab:CreateButton({
    Name = "Info",
    Callback = function()
-       notify("Info", "script ZOVCOPTER by NAGIEV\nAdded: Disable Cold, Auto Fix Panels, ESP, Bunker Rat", 5)
+       notify("Info", "script ZOVCOPTER by NAGIEV", 5)
    end
 })
 
-local VisualsTab = Window:CreateTab("Visuals", 4483362458)
+local sprintButton
+local noclipButton
+
+local function updateSprintButton()
+    if sprintButton then
+        sprintButton:SetText(sprintLoopRunning and "Infinity sprint (ON)" or "Infinity sprint")
+    end
+end
+
+local function updateNoclipButton()
+    if noclipButton then
+        noclipButton:SetText(noclipEnabled and "Noclip (ON)" or "Noclip")
+    end
+end
+
+local function startSprint()
+    sprintLoopRunning = true
+    updateSprintButton()
+    notify("Infinity sprint", "on", 1)
+    task.spawn(function()
+        while sprintLoopRunning do
+            task.wait(0.1)
+            local player = game.Players.LocalPlayer
+            if player and player.Character then
+                local sprint = player.Character:FindFirstChild("Sprint")
+                if sprint then
+                    local stamina = sprint:FindFirstChild("Stam")
+                    if stamina then
+                        stamina.Value = 90000
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function stopSprint()
+    sprintLoopRunning = false
+    updateSprintButton()
+    notify("Infinity sprint", "off", 1)
+end
+
+local function startNoclip()
+    noclipEnabled = true
+    updateNoclipButton()
+    notify("Noclip", "on", 1)
+    task.spawn(function()
+        local player = game.Players.LocalPlayer
+        if not player then return end
+        local function setNoCollisions(character)
+            if not character then return end
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                    part.CanTouch = false
+                end
+            end
+        end
+        if player.Character then
+            setNoCollisions(player.Character)
+        end
+        local charAddedConn = player.CharacterAdded:Connect(function(character)
+            task.wait(0.5)
+            if noclipEnabled then
+                setNoCollisions(character)
+            end
+        end)
+        table.insert(noclipConnections, charAddedConn)
+        local heartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
+            if not noclipEnabled then
+                for _, conn in ipairs(noclipConnections) do
+                    conn:Disconnect()
+                end
+                noclipConnections = {}
+                return
+            end
+            if player and player.Character then
+                for _, part in pairs(player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and (part.CanCollide or part.CanTouch) then
+                        part.CanCollide = false
+                        part.CanTouch = false
+                    end
+                end
+            end
+        end)
+        table.insert(noclipConnections, heartbeatConn)
+    end)
+end
+
+local function stopNoclip()
+    noclipEnabled = false
+    updateNoclipButton()
+    notify("Noclip", "off", 1)
+    for _, conn in ipairs(noclipConnections) do
+        conn:Disconnect()
+    end
+    noclipConnections = {}
+end
+
+sprintButton = PlayerTab:CreateButton({
+    Name = "Infinity sprint",
+    Callback = function()
+        if sprintLoopRunning then
+            stopSprint()
+        else
+            startSprint()
+        end
+    end
+})
+
+noclipButton = PlayerTab:CreateButton({
+    Name = "Noclip",
+    Callback = function()
+        if noclipEnabled then
+            stopNoclip()
+        else
+            startNoclip()
+        end
+    end
+})
+
+local TpWalkSlider = PlayerTab:CreateSlider({
+    Name = "TpWalk Speed",
+    Range = {1, 20},
+    Increment = 1,
+    Suffix = "studs/s",
+    CurrentValue = 4,
+    Flag = "TpWalkSpeed",
+    Callback = function(value)
+        tpwalkSpeed = value
+    end
+})
+
+local TpWalkButton = PlayerTab:CreateButton({
+    Name = "Toggle TpWalk",
+    Callback = function()
+        if tpwalking then
+            stopTPWalk()
+            notify("TpWalk", "Deactivated", 1)
+        else
+            startTPWalk(tpwalkSpeed)
+            notify("TpWalk", "Activated - Speed: " .. tpwalkSpeed, 1)
+        end
+    end
+})
+
+PlayerTab:CreateButton({
+    Name = "Stop TpWalk",
+    Callback = function()
+        if tpwalking then
+            stopTPWalk()
+            notify("TpWalk", "Stopped", 1)
+        else
+            notify("TpWalk", "Not active", 1)
+        end
+    end
+})
 
 local fullbrightEnabled = false
 local fullbrightConnections = {}
 
 local function highlightParts(model, color)
     if not model then return end
-
     for _, part in pairs(model:GetDescendants()) do
         if part:IsA("BasePart") then
             local highlight = Instance.new("Highlight")
@@ -242,7 +349,6 @@ end
 
 local function removeHighlights(model)
     if not model then return end
-
     for _, part in pairs(model:GetDescendants()) do
         if part:IsA("BasePart") then
             for _, child in ipairs(part:GetChildren()) do
@@ -263,18 +369,15 @@ local ButtonMutantESP = VisualsTab:CreateButton({
    Callback = function()
        mutantEspEnabled = not mutantEspEnabled
        notify("Mutant ESP", mutantEspEnabled and "on" or "off")
-
        if mutantEspEnabled then
            task.spawn(function()
                local function updateMutantESP()
                    local mutant = workspace:FindFirstChild("Mutant")
-
                    if mutant and not mutantList[mutant] then
                        highlightParts(mutant, Color3.fromRGB(255, 48, 48))
                        mutantList[mutant] = true
                    end
                end
-
                local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
                    if descendant.Name == "Mutant" and mutantEspEnabled then
                        task.wait(0.1)
@@ -285,14 +388,12 @@ local ButtonMutantESP = VisualsTab:CreateButton({
                    end
                end)
                table.insert(mutantEspConnections, descendantConn)
-
                local childRemovedConn = workspace.ChildRemoved:Connect(function(child)
                    if child.Name == "Mutant" and mutantList[child] then
                        mutantList[child] = nil
                    end
                end)
                table.insert(mutantEspConnections, childRemovedConn)
-
                updateMutantESP()
            end)
        else
@@ -302,7 +403,6 @@ local ButtonMutantESP = VisualsTab:CreateButton({
                end
            end
            mutantList = {}
-
            for _, conn in ipairs(mutantEspConnections) do
                conn:Disconnect()
            end
@@ -325,29 +425,23 @@ local ButtonZombieESP = VisualsTab:CreateButton({
    Callback = function()
        zombieEspEnabled = not zombieEspEnabled
        notify("Zombie ESP", zombieEspEnabled and "on" or "off")
-
        if zombieEspEnabled then
            task.spawn(function()
                local ReplicatedStorage = game:GetService("ReplicatedStorage")
                local Assets = ReplicatedStorage:FindFirstChild("Assets")
-
                if not Assets then
                    notify("Error", "Assets folder not found", 3)
                    return
                end
-
                local function addESPToZombie(zombie)
                    if not zombie or not zombieEspEnabled or zombieList[zombie] then 
                        return 
                    end
-
                    highlightParts(zombie, Color3.fromRGB(0, 255, 0))
                    zombieList[zombie] = true
                end
-
                local function updateZombieESP()
                    if not Assets then return end
-
                    for _, zombieName in ipairs(zombieTypes) do
                        for _, obj in pairs(workspace:GetDescendants()) do
                            if obj.Name == zombieName and obj:IsA("Model") then
@@ -356,10 +450,8 @@ local ButtonZombieESP = VisualsTab:CreateButton({
                        end
                    end
                end
-
                local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
                    if not zombieEspEnabled then return end
-
                    for _, zombieName in ipairs(zombieTypes) do
                        if descendant.Name == zombieName and descendant:IsA("Model") then
                            task.wait(0.1)
@@ -369,14 +461,12 @@ local ButtonZombieESP = VisualsTab:CreateButton({
                    end
                end)
                table.insert(zombieEspConnections, descendantConn)
-
                local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
                    if zombieList[descendant] then
                        zombieList[descendant] = nil
                    end
                end)
                table.insert(zombieEspConnections, childRemovedConn)
-
                updateZombieESP()
            end)
        else
@@ -386,7 +476,6 @@ local ButtonZombieESP = VisualsTab:CreateButton({
                end
            end
            zombieList = {}
-
            for _, conn in ipairs(zombieEspConnections) do
                conn:Disconnect()
            end
@@ -404,52 +493,42 @@ local ButtonStalkerESP = VisualsTab:CreateButton({
    Callback = function()
        stalkerEspEnabled = not stalkerEspEnabled
        notify("Stalker ESP", stalkerEspEnabled and "on" or "off")
-
        if stalkerEspEnabled then
            task.spawn(function()
                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
                local function addESPToStalker(stalker)
                    if not stalker or not stalkerEspEnabled or stalkerList[stalker] then 
                        return 
                    end
-
                    highlightParts(stalker, Color3.fromRGB(255, 0, 255))
                    stalkerList[stalker] = true
                end
-
                local function checkForStalker()
                    local stalkerInWorkspace = workspace:FindFirstChild("Stalker")
                    if stalkerInWorkspace and not stalkerList[stalkerInWorkspace] then
                        addESPToStalker(stalkerInWorkspace)
                    end
-
                    for _, obj in pairs(workspace:GetDescendants()) do
                        if obj.Name == "Stalker" and obj:IsA("Model") and not stalkerList[obj] then
                            addESPToStalker(obj)
                        end
                    end
                end
-
                local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
                    if not stalkerEspEnabled then return end
-
                    if descendant.Name == "Stalker" and descendant:IsA("Model") then
                        task.wait(0.1)
                        addESPToStalker(descendant)
                    end
                end)
                table.insert(stalkerEspConnections, descendantConn)
-
                local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
                    if stalkerList[descendant] then
                        stalkerList[descendant] = nil
                    end
                end)
                table.insert(stalkerEspConnections, childRemovedConn)
-
                checkForStalker()
-
                local function periodicCheck()
                    while stalkerEspEnabled do
                        checkForStalker()
@@ -457,7 +536,6 @@ local ButtonStalkerESP = VisualsTab:CreateButton({
                    end
                end
                task.spawn(periodicCheck)
-
            end)
        else
            for stalker, _ in pairs(stalkerList) do
@@ -466,7 +544,6 @@ local ButtonStalkerESP = VisualsTab:CreateButton({
                end
            end
            stalkerList = {}
-
            for _, conn in ipairs(stalkerEspConnections) do
                conn:Disconnect()
            end
@@ -484,20 +561,16 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
    Callback = function()
        spiderEspEnabled = not spiderEspEnabled
        notify("Spider ESP", spiderEspEnabled and "on" or "off")
-
        if spiderEspEnabled then
            task.spawn(function()
                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
                local function addESPToSpider(spider)
                    if not spider or not spiderEspEnabled or spiderList[spider] then 
                        return 
                    end
-
                    highlightParts(spider, Color3.fromRGB(255, 165, 0))
                    spiderList[spider] = true
                end
-
                local function checkForSpider()
                    local spiderInStorage = ReplicatedStorage:FindFirstChild("WorkerHead")
                    if spiderInStorage and not spiderList[spiderInStorage] then
@@ -506,11 +579,9 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
                                addESPToSpider(child)
                            end
                        end
-
                        local movedConn = spiderInStorage.ChildAdded:Connect(onSpiderMoved)
                        table.insert(spiderEspConnections, movedConn)
                    end
-
                    local possibleNames = {"WorkerHead", "Spider", "Arachnid"}
                    for _, name in ipairs(possibleNames) do
                        local spiderInWorkspace = workspace:FindFirstChild(name)
@@ -518,7 +589,6 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
                            addESPToSpider(spiderInWorkspace)
                        end
                    end
-
                    for _, obj in pairs(workspace:GetDescendants()) do
                        for _, name in ipairs(possibleNames) do
                            if obj.Name == name and obj:IsA("Model") and not spiderList[obj] then
@@ -527,10 +597,8 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
                        end
                    end
                end
-
                local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
                    if not spiderEspEnabled then return end
-
                    local possibleNames = {"WorkerHead", "Spider", "Arachnid"}
                    for _, name in ipairs(possibleNames) do
                        if descendant.Name == name and descendant:IsA("Model") then
@@ -541,16 +609,13 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
                    end
                end)
                table.insert(spiderEspConnections, descendantConn)
-
                local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
                    if spiderList[descendant] then
                        spiderList[descendant] = nil
                    end
                end)
                table.insert(spiderEspConnections, childRemovedConn)
-
                checkForSpider()
-
                local function periodicCheck()
                    while spiderEspEnabled do
                        checkForSpider()
@@ -558,7 +623,6 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
                    end
                end
                task.spawn(periodicCheck)
-
            end)
        else
            for spider, _ in pairs(spiderList) do
@@ -567,7 +631,6 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
                end
            end
            spiderList = {}
-
            for _, conn in ipairs(spiderEspConnections) do
                conn:Disconnect()
            end
@@ -615,7 +678,6 @@ local ButtonBunkerRatESP = VisualsTab:CreateButton({
     Callback = function()
         bunkerRatEspEnabled = not bunkerRatEspEnabled
         notify("Bunker Rat ESP", bunkerRatEspEnabled and "on" or "off", 2)
-        
         if bunkerRatEspEnabled then
             task.spawn(function()
                 local function addESPToRat(rat)
@@ -623,20 +685,17 @@ local ButtonBunkerRatESP = VisualsTab:CreateButton({
                     highlightBunkerRatParts(rat, Color3.fromRGB(139, 69, 19), "BunkerRatESP")
                     bunkerRatList[rat] = true
                 end
-                
                 local function findRat()
                     local rat = workspace:FindFirstChild("BunkerRat")
                     if rat and not bunkerRatList[rat] then
                         addESPToRat(rat)
                     end
-                    
                     for _, obj in pairs(workspace:GetDescendants()) do
                         if obj.Name == "BunkerRat" and obj:IsA("Model") and not bunkerRatList[obj] then
                             addESPToRat(obj)
                         end
                     end
                 end
-                
                 local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
                     if not bunkerRatEspEnabled then return end
                     if descendant.Name == "BunkerRat" and descendant:IsA("Model") then
@@ -645,16 +704,13 @@ local ButtonBunkerRatESP = VisualsTab:CreateButton({
                     end
                 end)
                 table.insert(bunkerRatEspConnections, descendantConn)
-                
                 local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
                     if bunkerRatList[descendant] then
                         bunkerRatList[descendant] = nil
                     end
                 end)
                 table.insert(bunkerRatEspConnections, childRemovedConn)
-                
                 findRat()
-                
                 local function periodicCheck()
                     while bunkerRatEspEnabled do
                         findRat()
@@ -670,7 +726,6 @@ local ButtonBunkerRatESP = VisualsTab:CreateButton({
                 end
             end
             bunkerRatList = {}
-            
             for _, conn in ipairs(bunkerRatEspConnections) do
                 conn:Disconnect()
             end
@@ -706,10 +761,8 @@ local ButtonFullbright = VisualsTab:CreateButton({
    Callback = function()
        fullbrightEnabled = not fullbrightEnabled
        notify("Fullbright", fullbrightEnabled and "on" or "off")
-
        if fullbrightEnabled then
            local lighting = game:GetService("Lighting")
-
            lighting.Brightness = 3
            lighting.Ambient = Color3.new(1, 1, 1)
            lighting.OutdoorAmbient = Color3.new(1, 1, 1)
@@ -718,7 +771,6 @@ local ButtonFullbright = VisualsTab:CreateButton({
            lighting.FogColor = Color3.new(0.75, 0.75, 0.75)
            lighting.FogEnd = 100000
            lighting.GlobalShadows = false
-
            local function applyFullbrightToPart(part)
                if part:IsA("BasePart") and part.Material ~= Enum.Material.Neon then
                    if part.Material ~= Enum.Material.ForceField then
@@ -726,13 +778,11 @@ local ButtonFullbright = VisualsTab:CreateButton({
                    end
                end
            end
-
            for _, part in pairs(workspace:GetDescendants()) do
                pcall(function()
                    applyFullbrightToPart(part)
                end)
            end
-
            local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
                if fullbrightEnabled then
                    pcall(function()
@@ -741,24 +791,20 @@ local ButtonFullbright = VisualsTab:CreateButton({
                end
            end)
            table.insert(fullbrightConnections, descendantConn)
-
            local lightingConn = lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
                if fullbrightEnabled then
                    lighting.Brightness = 3
                end
            end)
            table.insert(fullbrightConnections, lightingConn)
-
        else
            local lighting = game:GetService("Lighting")
-
            lighting.Brightness = 1
            lighting.Ambient = Color3.new(0, 0, 0)
            lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
            lighting.ColorShift_Top = Color3.new(0, 0, 0)
            lighting.ColorShift_Bottom = Color3.new(0, 0, 0)
            lighting.GlobalShadows = true
-
            for _, conn in ipairs(fullbrightConnections) do
                conn:Disconnect()
            end
@@ -766,8 +812,6 @@ local ButtonFullbright = VisualsTab:CreateButton({
        end
    end
 })
-
-local TeleportsTab = Window:CreateTab("teleports 1", 4483362458)
 
 local function teleportToGenerator()
     local player = game.Players.LocalPlayer
@@ -788,12 +832,10 @@ local function teleportToFusebox()
     local player = game.Players.LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local rootPart = player.Character.HumanoidRootPart
-
         local position = Vector3.new(-2.51521182, 4.69999933, -92.0851212)
         local xVector = Vector3.new(-0.976806104, 8.87231479e-08, -0.214125812)
         local yVector = Vector3.new(7.42130908e-08, 1, 7.58028662e-08)
         local zVector = Vector3.new(0.214125812, 5.81537662e-08, -0.976806104)
-
         rootPart.CFrame = CFrame.fromMatrix(position, xVector, yVector, zVector)
         notify("Teleport", "Teleported to fusebox", 2)
     else
@@ -805,12 +847,10 @@ local function teleportToRadio()
     local player = game.Players.LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local rootPart = player.Character.HumanoidRootPart
-
         local position = Vector3.new(-34.1258278, 7.79997444, -57.7533989)
         local xVector = Vector3.new(0.684229016, 7.12727726e-08, -0.72926718)
         local yVector = Vector3.new(-3.57603689e-08, 1, 6.41801705e-08)
         local zVector = Vector3.new(0.72926718, -1.78350721e-08, 0.684229016)
-
         rootPart.CFrame = CFrame.fromMatrix(position, xVector, yVector, zVector)
         notify("Teleport", "Teleported to radio", 2)
     else
@@ -822,12 +862,10 @@ local function teleportToFlashlight()
     local player = game.Players.LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local rootPart = player.Character.HumanoidRootPart
-
         local position = Vector3.new(-30.3133183, 7.79997444, -73.4244385)
         local xVector = Vector3.new(-0.999479949, 2.70063882e-08, 0.032245744)
         local yVector = Vector3.new(2.6297533e-08, 1, -2.240699e-08)
         local zVector = Vector3.new(-0.032245744, -2.15473541e-08, -0.999479949)
-
         rootPart.CFrame = CFrame.fromMatrix(position, xVector, yVector, zVector)
         notify("Teleport", "Teleported to flashlight", 2)
     else
@@ -839,12 +877,10 @@ local function teleportToBedroom()
     local player = game.Players.LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local rootPart = player.Character.HumanoidRootPart
-
         local position = Vector3.new(-39.2392654, 23.7999763, -76.9212952)
         local xVector = Vector3.new(0.990411162, -2.13168043e-08, 0.138151094)
         local yVector = Vector3.new(1.92792555e-08, 1, 1.60868421e-08)
         local zVector = Vector3.new(-0.138151094, -1.32691387e-08, 0.990411162)
-
         rootPart.CFrame = CFrame.fromMatrix(position, xVector, yVector, zVector)
         notify("Teleport", "Teleported to bedroom", 2)
     else
@@ -887,8 +923,6 @@ local TeleportButton5 = TeleportsTab:CreateButton({
     end
 })
 
-local NightTab = Window:CreateTab("night 2", 4483362458)
-
 local panelFixRunning = false
 local panelFixThread = nil
 
@@ -897,13 +931,11 @@ local function teleportToPanel(panelNumber)
     if not (player and player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
         return false
     end
-
     local panelPositions = {
         Vector3.new(-253.133392, 82.3999481, 21.5142994),
         Vector3.new(-232.752625, 82.3999481, -0.575056553),
         Vector3.new(-333.060486, 82.3999481, -70.03479)
     }
-
     if panelNumber >= 1 and panelNumber <= 3 then
         player.Character.HumanoidRootPart.CFrame = CFrame.new(panelPositions[panelNumber])
         return true
@@ -914,9 +946,7 @@ end
 local function checkBrokenPanels()
     local pressurePanels = workspace:FindFirstChild("PressurePanels")
     if not pressurePanels then return nil end
-
     local brokenPanels = {}
-
     for i, panel in ipairs(pressurePanels:GetChildren()) do
         if panel.Name == "Panel" then
             local failing = panel:FindFirstChild("Failing")
@@ -926,36 +956,29 @@ local function checkBrokenPanels()
                     failing = data:FindFirstChild("Failing")
                 end
             end
-
             if failing and failing:IsA("BoolValue") and failing.Value == true then
                 table.insert(brokenPanels, i)
             end
         end
     end
-
     return brokenPanels
 end
 
 local function startPanelFix()
     panelFixRunning = true
     notify("Auto Fix Panels", "Started monitoring panels", 2)
-
     panelFixThread = task.spawn(function()
         while panelFixRunning do
             local brokenPanels = checkBrokenPanels()
-
             if brokenPanels and #brokenPanels > 0 then
                 for _, panelNum in ipairs(brokenPanels) do
                     if not panelFixRunning then break end
-
                     notify("Auto Fix", "Fixing Panel " .. panelNum, 2)
-
                     if teleportToPanel(panelNum) then
                         wait(2)
                     end
                 end
             end
-
             for i = 1, 5 do
                 if not panelFixRunning then break end
                 wait(1)
@@ -1021,7 +1044,6 @@ local CheckStatusButton = NightTab:CreateButton({
     Name = "check panels status",
     Callback = function()
         local brokenPanels = checkBrokenPanels()
-
         if brokenPanels and #brokenPanels > 0 then
             local panelList = ""
             for i, num in ipairs(brokenPanels) do
@@ -1034,8 +1056,6 @@ local CheckStatusButton = NightTab:CreateButton({
         end
     end
 })
-
-local Night3Tab = Window:CreateTab("night 3 teleports", 4483362458)
 
 local function teleportTo(position, matrix)
     local player = game.Players.LocalPlayer
@@ -1215,7 +1235,727 @@ Night3Tab:CreateButton({
     end
 })
 
-local MansionMainTab = Window:CreateTab("main mansion", 4483362458)
+local spiritHelperRunning = false
+local spiritHelperThread = nil
+local lastSpiritLampTime = 0
+local lastSpiritAlarmTime = 0
+local lastSpiritBearTime = 0
+local spiritBedHidden = false
+local lastSpiritLampHeat = -1
+local lastSpiritMaxDistance = nil
+local lastSpiritBearDistance = nil
+local lastSpiritDistanceAt8 = false
+local lastSpiritBearCheckTime = 0
+local lastSpiritClosetProgress = nil
+local spiritBloodmoonMode = false
+local lastSpiritMonsterProgress = {Door = 0, Window = 0, Vent = 0}
+local lastSpiritLampHeatValue = -1
+local lastSpiritLampIncreaseTime = 0
+local spiritMonsterCooldown = 0
+local spiritLampESPEnabled = false
+local spiritLampESPThread = nil
+local spiritLampBillboard = nil
+
+local spiritPositions = {
+   alarm = {
+      pos = Vector3.new(-11.0053978, 5.00000334, 17.0491295),
+      matrix = {
+         Vector3.new(-0.00265719951, 0, 0.999996483),
+         Vector3.new(0, 1, 0),
+         Vector3.new(-0.999996483, 0, -0.00265719951)
+      },
+      name = "Alarm"
+   },
+   bed = {
+      pos = Vector3.new(-4.52546644, 5.00000334, 17.4178753),
+      matrix = {
+         Vector3.new(0.0772480145, 0, -0.9970119),
+         Vector3.new(0, 1, 0),
+         Vector3.new(0.9970119, 0, 0.0772480145)
+      },
+      name = "Bed"
+   },
+   bear = {
+      pos = Vector3.new(-8.43876457, 5.00000334, -8.79197693),
+      matrix = {
+         Vector3.new(0.997374952, 0, 0.072410278),
+         Vector3.new(0, 1, 0),
+         Vector3.new(-0.072410278, 0, 0.997374952)
+      },
+      name = "Bear"
+   },
+   lamp = {
+      pos = Vector3.new(8.50332642, 5.00000334, 19.6756325),
+      matrix = {
+         Vector3.new(-0.998574674, 3.19413402e-08, 0.0533724651),
+         Vector3.new(3.10384749e-08, 1, -1.77452169e-08),
+         Vector3.new(-0.0533724651, -1.60633249e-08, -0.998574674)
+      },
+      name = "Lamp"
+   },
+   closet = {
+      pos = Vector3.new(4.13197184, 5.12111855, -8.41910362),
+      matrix = {
+         Vector3.new(0.993054211, 0, 0.117657781),
+         Vector3.new(0, 1, 0),
+         Vector3.new(-0.117657781, 0, 0.993054211)
+      },
+      name = "Closet"
+   },
+   default = {
+      pos = Vector3.new(10.4230566, 5.00000334, 14.5195627),
+      matrix = {
+         Vector3.new(0.947909236, 1.45944297e-08, -0.318540603),
+         Vector3.new(-3.40286341e-08, 1, -5.54454544e-08),
+         Vector3.new(0.318540603, 6.33967616e-08, 0.947909236)
+      },
+      name = "Default"
+   }
+}
+
+local function spiritTeleportTo(position, matrix)
+   local player = game.Players.LocalPlayer
+   if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+      player.Character.HumanoidRootPart.CFrame = CFrame.new(position) * CFrame.fromMatrix(Vector3.new(), 
+         matrix[1], matrix[2], matrix[3]
+      )
+      return true
+   end
+   return false
+end
+
+local function spiritTeleportToLocation(loc)
+   return spiritTeleportTo(spiritPositions[loc].pos, spiritPositions[loc].matrix)
+end
+
+local function spiritGetLampHeat()
+   local success, value = pcall(function()
+      local lamp = workspace:FindFirstChild("Lamp")
+      if lamp then
+         local heat = lamp:FindFirstChild("Heat")
+         if heat and heat:IsA("NumberValue") then
+            return heat.Value
+         end
+      end
+      return nil
+   end)
+   return success and value or nil
+end
+
+local function spiritGetMaxActivationDistance()
+   local success, value = pcall(function()
+      local radio = workspace:FindFirstChild("Radio")
+      if radio then
+         local clickDetector = radio:FindFirstChild("ClickDetector")
+         if clickDetector and clickDetector:IsA("ClickDetector") then
+            return clickDetector.MaxActivationDistance
+         end
+      end
+      return nil
+   end)
+   return success and value or nil
+end
+
+local function spiritGetBearClickDetectorDistance()
+   local success, value = pcall(function()
+      local teddyBear = workspace:FindFirstChild("Teddy bear")
+      if teddyBear then
+         local clickDetector = teddyBear:FindFirstChild("ClickDetector")
+         if clickDetector and clickDetector:IsA("ClickDetector") then
+            return clickDetector.MaxActivationDistance
+         end
+      end
+      return nil
+   end)
+   return success and value or nil
+end
+
+local function spiritGetClosetProgress()
+   local success, value = pcall(function()
+      local monster = workspace:FindFirstChild("Monster")
+      if monster then
+         local closet = monster:FindFirstChild("Closet")
+         if closet then
+            local progress = closet:FindFirstChild("Progress")
+            if progress and progress:IsA("NumberValue") then
+               return progress.Value
+            end
+         end
+      end
+      return nil
+   end)
+   return success and value or nil
+end
+
+local function spiritIsBedHidden()
+   local success, result = pcall(function()
+      local bed = workspace:FindFirstChild("Bed")
+      if bed then
+         local hidden = bed:FindFirstChild("Hidden")
+         if hidden and hidden:IsA("BoolValue") then
+            return hidden.Value
+         end
+      end
+      return false
+   end)
+   return success and result or false
+end
+
+local function spiritCheckMonsterProgress()
+   local monster = workspace:FindFirstChild("Monster")
+   if not monster then return 0, {}, 0 end
+   
+   local paths = {"Door", "Window", "Vent"}
+   local maxProgress = 0
+   local details = {}
+   local countAt3 = 0
+   
+   for _, path in ipairs(paths) do
+      local target = monster:FindFirstChild(path)
+      if target then
+         local progress = target:FindFirstChild("Progress")
+         if progress and progress:IsA("NumberValue") then
+            details[path] = progress.Value
+            if progress.Value > maxProgress then
+               maxProgress = progress.Value
+            end
+            if progress.Value == 3 then
+               countAt3 = countAt3 + 1
+            end
+         end
+      end
+   end
+   
+   return maxProgress, details, countAt3
+end
+
+local function spiritCheckMonsterChanges(currentDetails)
+   local resetMessages = {}
+   
+   for path, value in pairs(currentDetails) do
+      local lastValue = lastSpiritMonsterProgress[path]
+      if lastValue ~= nil and value ~= lastValue then
+         if value == 0 and lastValue > 0 then
+            table.insert(resetMessages, path .. " is gone! (was " .. lastValue .. ")")
+         end
+      end
+   end
+   
+   for path, value in pairs(currentDetails) do
+      lastSpiritMonsterProgress[path] = value
+   end
+   
+   for path, lastValue in pairs(lastSpiritMonsterProgress) do
+      if currentDetails[path] == nil then
+         table.insert(resetMessages, path .. " disappeared!")
+         lastSpiritMonsterProgress[path] = nil
+      end
+   end
+   
+   if #resetMessages > 0 then
+      local message = table.concat(resetMessages, "\n")
+      notify("MONSTER IS GONE!", message, 5)
+   end
+   
+   return #resetMessages > 0
+end
+
+local function spiritCheckAlarmAndTeleport()
+   local currentDistance = spiritGetMaxActivationDistance()
+   if currentDistance == nil then 
+      lastSpiritDistanceAt8 = false
+      return false 
+   end
+   
+   local hidden = spiritIsBedHidden()
+   
+   if hidden then
+      return false
+   end
+   
+   if lastSpiritMaxDistance ~= nil and currentDistance == 0 and lastSpiritMaxDistance > 0 then
+      notify("ALARM RESET!", "Distance: " .. lastSpiritMaxDistance .. " → 0 - Teleporting to lamp!", 2)
+      spiritTeleportToLocation("lamp")
+      lastSpiritLampTime = tick()
+      lastSpiritMaxDistance = currentDistance
+      return true
+   end
+   
+   if currentDistance == 8 then
+      if not lastSpiritDistanceAt8 then
+         notify("RADIO READY!", "Distance set to 8 - Teleporting every 2 seconds", 2)
+         lastSpiritDistanceAt8 = true
+      end
+   else
+      if lastSpiritDistanceAt8 then
+         lastSpiritDistanceAt8 = false
+      end
+   end
+   
+   if lastSpiritDistanceAt8 and tick() - lastSpiritAlarmTime >= 2 then
+      notify("ALARM!", "Teleporting to alarm", 1.5)
+      spiritTeleportToLocation("alarm")
+      lastSpiritAlarmTime = tick()
+      return true
+   end
+   
+   lastSpiritMaxDistance = currentDistance
+   return false
+end
+
+local function spiritCheckBearAndTeleport()
+   local currentDistance = spiritGetBearClickDetectorDistance()
+   if currentDistance == nil then return false end
+   
+   local hidden = spiritIsBedHidden()
+   
+   if hidden then
+      return false
+   end
+   
+   local currentTime = tick()
+   
+   if lastSpiritBearDistance ~= nil and currentDistance == 0 and lastSpiritBearDistance > 0 then
+      notify("BEAR RESET!", "Distance: " .. lastSpiritBearDistance .. " → 0 - Teleporting to lamp!", 2)
+      spiritTeleportToLocation("lamp")
+      lastSpiritLampTime = tick()
+      lastSpiritBearDistance = currentDistance
+      return true
+   end
+   
+   if currentDistance >= 6 and currentDistance <= 8 and currentTime - lastSpiritBearCheckTime >= 3 then
+      notify("BEAR!", "Distance: " .. currentDistance .. " - Teleporting to bear!", 2)
+      spiritTeleportToLocation("bear")
+      lastSpiritBearCheckTime = currentTime
+      lastSpiritBearDistance = currentDistance
+      return true
+   end
+   
+   lastSpiritBearDistance = currentDistance
+   return false
+end
+
+local function spiritCheckClosetAndTeleport()
+   local currentProgress = spiritGetClosetProgress()
+   if currentProgress == nil then return false end
+   
+   local hidden = spiritIsBedHidden()
+   
+   if hidden then
+      return false
+   end
+   
+   if lastSpiritClosetProgress ~= nil and currentProgress == 3 and lastSpiritClosetProgress ~= 3 then
+      notify("CLOSET ALERT!", "Progress: 3 - Teleporting to closet!", 3)
+      spiritTeleportToLocation("closet")
+      lastSpiritClosetProgress = currentProgress
+      return true
+   end
+   
+   if lastSpiritClosetProgress ~= nil and currentProgress == 0 and lastSpiritClosetProgress == 3 then
+      notify("CLOSET RESET!", "Progress: 3 → 0 - Teleporting to lamp!", 2)
+      spiritTeleportToLocation("lamp")
+      lastSpiritLampTime = tick()
+      lastSpiritClosetProgress = currentProgress
+      return true
+   end
+   
+   lastSpiritClosetProgress = currentProgress
+   return false
+end
+
+local function spiritCheckLampAndTeleport()
+   local heat = spiritGetLampHeat()
+   if heat == nil then return false end
+   
+   if heat ~= lastSpiritLampHeat then
+      lastSpiritLampHeat = heat
+   end
+   
+   local shouldTeleport = false
+   local action = ""
+   
+   if heat == 0 then
+      shouldTeleport = true
+      action = "TURN ON"
+   elseif heat >= 60 and heat <= 70 then
+      shouldTeleport = true
+      action = "TURN OFF (" .. heat .. ")"
+   end
+   
+   if shouldTeleport and tick() - lastSpiritLampTime > 5 then
+      notify("LAMP NEEDS " .. action .. "!", "Heat: " .. heat, 3)
+      spiritTeleportToLocation("lamp")
+      lastSpiritLampTime = tick()
+      return true
+   end
+   
+   return false
+end
+
+local function spiritCheckLampIncrease()
+   local heat = spiritGetLampHeat()
+   if heat == nil then return false end
+   
+   if lastSpiritLampHeatValue == -1 then
+      lastSpiritLampHeatValue = heat
+      return false
+   end
+   
+   local increase = heat - lastSpiritLampHeatValue
+   
+   if increase >= 0.2 and increase <= 100 and tick() - lastSpiritLampIncreaseTime >= 2 then
+      notify("LAMP HEAT INCREASE!", "Heat increased by " .. string.format("%.2f", increase), 2)
+      spiritTeleportToLocation("lamp")
+      lastSpiritLampTime = tick()
+      lastSpiritLampIncreaseTime = tick()
+      lastSpiritLampHeatValue = heat
+      return true
+   end
+   
+   lastSpiritLampHeatValue = heat
+   return false
+end
+
+local function spiritHandleMonsterAt3()
+   notify("MONSTER AT 3!", "Teleporting to lamp first!", 3)
+   spiritTeleportToLocation("lamp")
+   task.wait(3)
+   notify("MONSTER AT 3!", "Now teleporting to bed!", 3)
+   spiritTeleportToLocation("bed")
+   task.wait(2)
+end
+
+local function spiritCheckAndAct()
+   local currentTime = tick()
+   local hidden = spiritIsBedHidden()
+   local monsterProgress, monsterDetails, countAt3 = spiritCheckMonsterProgress()
+   
+   if hidden ~= spiritBedHidden then
+      spiritBedHidden = hidden
+   end
+   
+   spiritCheckMonsterChanges(monsterDetails)
+   
+   if monsterProgress == 3 then
+      if spiritCheckLampIncrease() then
+         return
+      end
+   end
+   
+   if spiritCheckClosetAndTeleport() then
+      return
+   end
+   
+   if hidden then
+      return
+   end
+   
+   if spiritCheckBearAndTeleport() then
+      return
+   end
+   
+   if spiritCheckLampAndTeleport() then
+      return
+   end
+   
+   if spiritCheckAlarmAndTeleport() then
+      return
+   end
+   
+   if monsterProgress == 3 then
+      if spiritBloodmoonMode then
+         if countAt3 == 3 then
+            return
+         end
+      end
+      
+      if tick() - spiritMonsterCooldown > 10 then
+         spiritMonsterCooldown = tick()
+         spiritHandleMonsterAt3()
+      end
+      return
+   end
+   
+   for path, value in pairs(monsterDetails) do
+      local lastValue = lastSpiritMonsterProgress[path]
+      if lastValue ~= nil and value ~= lastValue then
+         if value == 0 and lastValue > 0 then
+            notify("MONSTER IS GONE!", path .. " reset to 0", 2)
+         end
+      end
+      lastSpiritMonsterProgress[path] = value
+   end
+end
+
+local function spiritStartHelper()
+   if spiritHelperRunning then
+      notify("Spirit Helper", "Already running", 2)
+      return
+   end
+   
+   spiritHelperRunning = true
+   lastSpiritLampTime = tick()
+   lastSpiritAlarmTime = tick()
+   lastSpiritBearCheckTime = tick()
+   lastSpiritLampIncreaseTime = tick()
+   spiritMonsterCooldown = 0
+   spiritBedHidden = spiritIsBedHidden()
+   lastSpiritLampHeat = spiritGetLampHeat()
+   lastSpiritLampHeatValue = spiritGetLampHeat()
+   lastSpiritMaxDistance = spiritGetMaxActivationDistance()
+   lastSpiritBearDistance = spiritGetBearClickDetectorDistance()
+   lastSpiritClosetProgress = spiritGetClosetProgress()
+   lastSpiritDistanceAt8 = (lastSpiritMaxDistance == 8)
+   
+   local _, details, _ = spiritCheckMonsterProgress()
+   for path, value in pairs(details) do
+      lastSpiritMonsterProgress[path] = value
+   end
+   
+   notify("Spirit Helper", "Auto assistant started", 2)
+   
+   spiritHelperThread = task.spawn(function()
+      while spiritHelperRunning do
+         local success, err = pcall(spiritCheckAndAct)
+         if not success then
+         end
+         task.wait(0.3)
+      end
+   end)
+end
+
+local function spiritStopHelper()
+   spiritHelperRunning = false
+   if spiritHelperThread then
+      task.cancel(spiritHelperThread)
+      spiritHelperThread = nil
+   end
+   notify("Spirit Helper", "Stopped", 2)
+end
+
+local function spiritToggleBloodmoon()
+   spiritBloodmoonMode = not spiritBloodmoonMode
+   notify("Bloodmoon Mode", spiritBloodmoonMode and "ENABLED - Hallucinations ignored" or "DISABLED - Normal mode", 3)
+end
+
+local function spiritToggleLampESP()
+   spiritLampESPEnabled = not spiritLampESPEnabled
+   if spiritLampESPEnabled then
+      local lamp = workspace:FindFirstChild("Lamp")
+      if lamp then
+         local bulb = lamp:FindFirstChild("Bulb")
+         if bulb then
+            if spiritLampBillboard and spiritLampBillboard.Parent then
+               spiritLampBillboard:Destroy()
+            end
+            
+            spiritLampBillboard = Instance.new("BillboardGui")
+            spiritLampBillboard.Name = "LampHeatDisplay"
+            spiritLampBillboard.Adornee = bulb
+            spiritLampBillboard.Size = UDim2.new(0, 100, 0, 30)
+            spiritLampBillboard.StudsOffset = Vector3.new(0, 1.5, 0)
+            spiritLampBillboard.AlwaysOnTop = true
+            spiritLampBillboard.Parent = bulb
+            
+            local frame = Instance.new("Frame")
+            frame.Size = UDim2.new(1, 0, 1, 0)
+            frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            frame.BackgroundTransparency = 0.3
+            frame.BorderSizePixel = 0
+            frame.Parent = spiritLampBillboard
+            
+            local uiCorner = Instance.new("UICorner")
+            uiCorner.CornerRadius = UDim.new(0, 8)
+            uiCorner.Parent = frame
+            
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.Text = "Lamp Heat: --%"
+            textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            textLabel.TextSize = 14
+            textLabel.Font = Enum.Font.GothamBold
+            textLabel.TextStrokeTransparency = 0.5
+            textLabel.Parent = frame
+            
+            spiritLampESPThread = task.spawn(function()
+               while spiritLampESPEnabled and spiritLampBillboard and spiritLampBillboard.Parent do
+                  local heat = spiritGetLampHeat()
+                  if heat ~= nil then
+                     local color
+                     if heat == 0 then
+                        color = Color3.fromRGB(255, 100, 100)
+                        textLabel.Text = "LAMP OFF - 0%"
+                     elseif heat >= 60 and heat <= 70 then
+                        color = Color3.fromRGB(255, 200, 100)
+                        textLabel.Text = "TURN OFF! " .. math.floor(heat) .. "%"
+                     else
+                        color = Color3.fromRGB(100, 255, 100)
+                        textLabel.Text = "Lamp Heat: " .. math.floor(heat) .. "%"
+                     end
+                     frame.BackgroundColor3 = color
+                     frame.BackgroundTransparency = 0.2
+                  else
+                     textLabel.Text = "Lamp not found"
+                     frame.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+                  end
+                  task.wait(0.2)
+               end
+            end)
+         end
+      end
+      notify("Lamp ESP", "Enabled", 2)
+   else
+      if spiritLampESPThread then
+         task.cancel(spiritLampESPThread)
+         spiritLampESPThread = nil
+      end
+      if spiritLampBillboard and spiritLampBillboard.Parent then
+         spiritLampBillboard:Destroy()
+         spiritLampBillboard = nil
+      end
+      notify("Lamp ESP", "Disabled", 2)
+   end
+end
+
+SpiritHelperTab:CreateButton({
+   Name = "START auto helper",
+   Callback = spiritStartHelper
+})
+
+SpiritHelperTab:CreateButton({
+   Name = "STOP auto helper",
+   Callback = spiritStopHelper
+})
+
+SpiritHelperTab:CreateButton({
+   Name = "RESTART auto helper",
+   Callback = function()
+      spiritStopHelper()
+      task.wait(0.5)
+      spiritStartHelper()
+   end
+})
+
+SpiritHelperTab:CreateButton({
+   Name = "Check radio distance",
+   Callback = function()
+      local distance = spiritGetMaxActivationDistance()
+      if distance ~= nil then
+         notify("Radio Distance", "Current: " .. distance, 2)
+      else
+         notify("Error", "Radio ClickDetector not found", 2)
+      end
+   end
+})
+
+SpiritHelperTab:CreateButton({
+   Name = "Check bear distance",
+   Callback = function()
+      local distance = spiritGetBearClickDetectorDistance()
+      if distance ~= nil then
+         notify("Bear Distance", "Current: " .. distance, 2)
+      else
+         notify("Error", "Teddy bear ClickDetector not found", 2)
+      end
+   end
+})
+
+SpiritHelperTab:CreateButton({
+   Name = "Check closet progress",
+   Callback = function()
+      local progress = spiritGetClosetProgress()
+      if progress ~= nil then
+         notify("Closet Progress", "Current: " .. progress, 2)
+      else
+         notify("Error", "Closet not found", 2)
+      end
+   end
+})
+
+SpiritHelperTab:CreateButton({
+   Name = "Force check lamp",
+   Callback = function()
+      local heat = spiritGetLampHeat()
+      if heat == nil then
+         notify("Error", "Lamp not found", 2)
+         return
+      end
+      
+      notify("Lamp Heat", "Current: " .. heat, 2)
+      
+      if heat == 0 or (heat >= 60 and heat <= 70) then
+         local action = (heat == 0) and "TURN ON" or "TURN OFF"
+         notify("Manual teleport", "Heat: " .. heat .. " - " .. action, 2)
+         spiritTeleportToLocation("lamp")
+      end
+   end
+})
+
+SpiritHelperTab:CreateButton({
+   Name = "Check lamp heat",
+   Callback = function()
+      local heat = spiritGetLampHeat()
+      if heat == nil then
+         notify("Error", "Lamp not found", 2)
+         return
+      end
+      
+      local status = "Current: " .. heat
+      if heat == 0 then
+         status = status .. " (needs TURN ON)"
+      elseif heat >= 60 and heat <= 70 then
+         status = status .. " (needs TURN OFF)"
+      end
+      notify("Lamp Heat", status, 2)
+   end
+})
+
+SpiritHelperTab:CreateButton({
+   Name = "Check bed status",
+   Callback = function()
+      local hidden = spiritIsBedHidden()
+      notify("Bed Status", hidden and "HIDDEN" or "VISIBLE", 2)
+   end
+})
+
+SpiritVisualsTab:CreateButton({
+   Name = "Lamp Heat ESP",
+   Callback = spiritToggleLampESP
+})
+
+BloodmoonTab:CreateButton({
+   Name = "BLOODMOON MODE",
+   Callback = spiritToggleBloodmoon
+})
+
+BloodmoonTab:CreateButton({
+   Name = "Teleport to Closet",
+   Callback = function()
+      spiritTeleportToLocation("closet")
+      notify("Teleport", "Teleported to closet", 2)
+   end
+})
+
+BloodmoonTab:CreateButton({
+   Name = "Check Closet Progress",
+   Callback = function()
+      local progress = spiritGetClosetProgress()
+      if progress ~= nil then
+         notify("Closet Progress", "Current: " .. progress, 2)
+      else
+         notify("Error", "Closet not found", 2)
+      end
+   end
+})
+
+BloodmoonTab:CreateButton({
+   Name = "Bloodmoon Info",
+   Callback = function()
+      notify("Bloodmoon Mode", "When enabled:\n- All 3 monsters at 3 (hallucinations) are IGNORED\n- Real monster attacks (1-2 monsters at 3) still trigger teleport\n- Closet, Bear, Alarm, Lamp work normally", 5)
+   end
+})
 
 local removeDangerRunning = false
 local removeDangerThread = nil
@@ -1250,7 +1990,6 @@ end
 local function startRemoveDanger()
     removeDangerRunning = true
     mansionNotify("Remove Danger", "Started", 2)
-    
     removeDangerThread = task.spawn(function()
         while removeDangerRunning do
             setDangerToZero()
@@ -1294,35 +2033,27 @@ local function startKidAlert()
     kidAlertEnabled = true
     kidDetected = false
     mansionNotify("Kid Alert", "Tracking enabled", 2)
-    
     kidAlertThread = task.spawn(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         local lastKidState = false
-        
         while kidAlertEnabled do
             local kidInStorage = ReplicatedStorage:FindFirstChild("Kid")
             local kidInWorkspace = workspace:FindFirstChild("Kid")
-            
             if kidInWorkspace and not lastKidState then
                 kidDetected = true
-                
                 for i = 1, 5 do
                     mansionNotify("KID ALERT", "Kid is in the mansion! (Warning " .. i .. "/5)", 2)
                     task.wait(1)
                 end
-                
                 lastKidState = true
-                
             elseif not kidInWorkspace and lastKidState then
                 kidDetected = false
                 mansionNotify("Kid Alert", "Kid is gone", 2)
                 lastKidState = false
             end
-            
             if kidInWorkspace then
                 kidDetected = true
             end
-            
             task.wait(1)
         end
     end)
@@ -1354,7 +2085,6 @@ MansionMainTab:CreateButton({
     Callback = function()
         local kidInStorage = game:GetService("ReplicatedStorage"):FindFirstChild("Kid")
         local kidInWorkspace = workspace:FindFirstChild("Kid")
-        
         if kidInWorkspace then
             mansionNotify("Kid Status", "Kid is in workspace NOW!", 3)
         else
@@ -1362,8 +2092,6 @@ MansionMainTab:CreateButton({
         end
     end
 })
-
-local MansionVisualsTab = Window:CreateTab("mansion visuals", 4483362458)
 
 local mansionFullbrightEnabled = false
 local mansionFullbrightConnections = {}
@@ -1373,10 +2101,8 @@ local MansionButtonFullbright = MansionVisualsTab:CreateButton({
     Callback = function()
         mansionFullbrightEnabled = not mansionFullbrightEnabled
         mansionNotify("Fullbright", mansionFullbrightEnabled and "on" or "off", 2)
-        
         if mansionFullbrightEnabled then
             local lighting = game:GetService("Lighting")
-            
             lighting.Brightness = 3
             lighting.Ambient = Color3.new(1, 1, 1)
             lighting.OutdoorAmbient = Color3.new(1, 1, 1)
@@ -1385,7 +2111,6 @@ local MansionButtonFullbright = MansionVisualsTab:CreateButton({
             lighting.FogColor = Color3.new(0.75, 0.75, 0.75)
             lighting.FogEnd = 100000
             lighting.GlobalShadows = false
-            
             local function applyFullbrightToPart(part)
                 if part:IsA("BasePart") and part.Material ~= Enum.Material.Neon then
                     if part.Material ~= Enum.Material.ForceField then
@@ -1393,13 +2118,11 @@ local MansionButtonFullbright = MansionVisualsTab:CreateButton({
                     end
                 end
             end
-            
             for _, part in pairs(workspace:GetDescendants()) do
                 pcall(function()
                     applyFullbrightToPart(part)
                 end)
             end
-            
             local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
                 if mansionFullbrightEnabled then
                     pcall(function()
@@ -1408,24 +2131,20 @@ local MansionButtonFullbright = MansionVisualsTab:CreateButton({
                 end
             end)
             table.insert(mansionFullbrightConnections, descendantConn)
-            
             local lightingConn = lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
                 if mansionFullbrightEnabled then
                     lighting.Brightness = 3
                 end
             end)
             table.insert(mansionFullbrightConnections, lightingConn)
-            
         else
             local lighting = game:GetService("Lighting")
-            
             lighting.Brightness = 1
             lighting.Ambient = Color3.new(0, 0, 0)
             lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
             lighting.ColorShift_Top = Color3.new(0, 0, 0)
             lighting.ColorShift_Bottom = Color3.new(0, 0, 0)
             lighting.GlobalShadows = true
-            
             for _, conn in ipairs(mansionFullbrightConnections) do
                 conn:Disconnect()
             end
@@ -1473,17 +2192,14 @@ local ButtonBasementMonsterESP = MansionVisualsTab:CreateButton({
     Callback = function()
         basementMonsterEspEnabled = not basementMonsterEspEnabled
         mansionNotify("Basement Monster ESP", basementMonsterEspEnabled and "on" or "off", 2)
-        
         if basementMonsterEspEnabled then
             task.spawn(function()
                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                
                 local function addESP(monster)
                     if not monster or not basementMonsterEspEnabled or basementMonsterList[monster] then return end
                     highlightMansionParts(monster, Color3.fromRGB(255, 0, 0), "BasementESP")
                     basementMonsterList[monster] = true
                 end
-                
                 local function check()
                     local m = workspace:FindFirstChild("BasementMonster")
                     if m and not basementMonsterList[m] then addESP(m) end
@@ -1493,7 +2209,6 @@ local ButtonBasementMonsterESP = MansionVisualsTab:CreateButton({
                         end
                     end
                 end
-                
                 local conn = workspace.DescendantAdded:Connect(function(d)
                     if d.Name == "BasementMonster" and d:IsA("Model") then
                         task.wait(0.1)
@@ -1501,12 +2216,10 @@ local ButtonBasementMonsterESP = MansionVisualsTab:CreateButton({
                     end
                 end)
                 table.insert(basementMonsterEspConnections, conn)
-                
                 local remConn = workspace.DescendantRemoving:Connect(function(d)
                     if basementMonsterList[d] then basementMonsterList[d] = nil end
                 end)
                 table.insert(basementMonsterEspConnections, remConn)
-                
                 check()
             end)
         else
@@ -1529,17 +2242,14 @@ local ButtonKidESP = MansionVisualsTab:CreateButton({
     Callback = function()
         kidEspEnabled = not kidEspEnabled
         mansionNotify("Kid ESP", kidEspEnabled and "on" or "off", 2)
-        
         if kidEspEnabled then
             task.spawn(function()
                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                
                 local function addESP(kid)
                     if not kid or not kidEspEnabled or kidList[kid] then return end
                     highlightMansionParts(kid, Color3.fromRGB(0, 255, 255), "KidESP")
                     kidList[kid] = true
                 end
-                
                 local function check()
                     local k = workspace:FindFirstChild("Kid")
                     if k and not kidList[k] then addESP(k) end
@@ -1549,7 +2259,6 @@ local ButtonKidESP = MansionVisualsTab:CreateButton({
                         end
                     end
                 end
-                
                 local conn = workspace.DescendantAdded:Connect(function(d)
                     if d.Name == "Kid" and d:IsA("Model") then
                         task.wait(0.1)
@@ -1557,12 +2266,10 @@ local ButtonKidESP = MansionVisualsTab:CreateButton({
                     end
                 end)
                 table.insert(kidEspConnections, conn)
-                
                 local remConn = workspace.DescendantRemoving:Connect(function(d)
                     if kidList[d] then kidList[d] = nil end
                 end)
                 table.insert(kidEspConnections, remConn)
-                
                 check()
             end)
         else
@@ -1585,7 +2292,6 @@ local ButtonDoorMonsterESP = MansionVisualsTab:CreateButton({
     Callback = function()
         doorMonsterEspEnabled = not doorMonsterEspEnabled
         mansionNotify("Door Monster ESP", doorMonsterEspEnabled and "on" or "off", 2)
-        
         if doorMonsterEspEnabled then
             task.spawn(function()
                 local function addESP(monster)
@@ -1593,7 +2299,6 @@ local ButtonDoorMonsterESP = MansionVisualsTab:CreateButton({
                     highlightMansionParts(monster, Color3.fromRGB(255, 165, 0), "DoorESP")
                     doorMonsterList[monster] = true
                 end
-                
                 local function check()
                     local m = workspace:FindFirstChild("DoorMonster")
                     if m and not doorMonsterList[m] then addESP(m) end
@@ -1603,7 +2308,6 @@ local ButtonDoorMonsterESP = MansionVisualsTab:CreateButton({
                         end
                     end
                 end
-                
                 local conn = workspace.DescendantAdded:Connect(function(d)
                     if d.Name == "DoorMonster" and d:IsA("Model") then
                         task.wait(0.1)
@@ -1611,12 +2315,10 @@ local ButtonDoorMonsterESP = MansionVisualsTab:CreateButton({
                     end
                 end)
                 table.insert(doorMonsterEspConnections, conn)
-                
                 local remConn = workspace.DescendantRemoving:Connect(function(d)
                     if doorMonsterList[d] then doorMonsterList[d] = nil end
                 end)
                 table.insert(doorMonsterEspConnections, remConn)
-                
                 check()
             end)
         else
@@ -1629,8 +2331,6 @@ local ButtonDoorMonsterESP = MansionVisualsTab:CreateButton({
         end
     end
 })
-
-local MansionTeleportsTab = Window:CreateTab("mansion teleports", 4483362458)
 
 local function mansionTeleport(position, matrix, name)
     local player = game.Players.LocalPlayer
@@ -1689,8 +2389,6 @@ MansionTeleportsTab:CreateButton({
     end
 })
 
-local BunkerTab = Window:CreateTab("bunker", 4483362458)
-
 local function bunkerTeleport(pos, matrix, name)
     local player = game.Players.LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -1719,7 +2417,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "───────── PANELS ─────────",
+    Name = "PANELS",
     Callback = function() end
 })
 
@@ -1784,7 +2482,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "───────── CANISTERS ─────────",
+    Name = "CANISTERS",
     Callback = function() end
 })
 
@@ -1894,7 +2592,7 @@ BunkerTab:CreateButton({
 })
 
 BunkerTab:CreateButton({
-    Name = "───────── OTHER ─────────",
+    Name = "OTHER",
     Callback = function() end
 })
 
@@ -1943,42 +2641,25 @@ BunkerTab:CreateButton({
     end
 })
 
-local ItemGrabber1 = Window:CreateTab("item graber 1", 4483362458)
-
-local function itemNotify1(msg, duration)
-    Rayfield:Notify({
-        Title = "Item Grabber",
-        Content = msg,
-        Duration = duration or 2,
-        Image = 4483362458
-    })
-end
+local spotIndexes1 = {2, 9, 3, 4, 6, 7, 8, 5, 10}
+local itemNames1 = {"Wrench", "Medkit", "Hammer", "BloxyCola", "Battery"}
 
 local function teleportToItem1(cf, name)
     local player = game.Players.LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         player.Character.HumanoidRootPart.CFrame = cf
-        itemNotify1("Teleported to " .. name, 1)
         return true
-    else
-        itemNotify1("Error: Character not found", 2)
-        return false
     end
+    return false
 end
-
-local spotIndexes1 = {2, 9, 3, 4, 6, 7, 8, 5, 10}
-local itemNames1 = {"Wrench", "Medkit", "Hammer", "BloxyCola", "Battery"}
 
 local function findItemInSpot1(spotIndex, itemName)
     local itemSpots = workspace:FindFirstChild("ItemSpots")
     if not itemSpots then return nil end
-    
     local spot = itemSpots:GetChildren()[spotIndex]
     if not spot then return nil end
-    
     local item = spot:FindFirstChild(itemName)
     if not item then return nil end
-    
     local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
     if target and target:IsA("BasePart") then
         return {
@@ -1988,15 +2669,6 @@ local function findItemInSpot1(spotIndex, itemName)
         }
     end
     return nil
-end
-
-local function findItemInAllSpots1(itemName)
-    local results = {}
-    for _, spotIndex in ipairs(spotIndexes1) do
-        local item = findItemInSpot1(spotIndex, itemName)
-        if item then table.insert(results, item) end
-    end
-    return results
 end
 
 local function findAllItems1()
@@ -2010,147 +2682,103 @@ local function findAllItems1()
     return results
 end
 
-
-
-
-
-
-
-
+ItemGrabber1:CreateButton({
+    Name = "Grab All Items",
+    Callback = function()
+        local results = findAllItems1()
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem1(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        end
+    end
+})
 
 ItemGrabber1:CreateButton({
     Name = "Wrench",
     Callback = function()
-        local results = findItemInAllSpots1("Wrench")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes1) do
+            local item = findItemInSpot1(spotIndex, "Wrench")
+            if item then table.insert(results, item) end
+        end
         if #results > 0 then
             for _, res in ipairs(results) do
                 teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify1("No Wrench found", 2)
         end
     end
 })
-
-
 
 ItemGrabber1:CreateButton({
     Name = "Medkit",
     Callback = function()
-        local results = findItemInAllSpots1("Medkit")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes1) do
+            local item = findItemInSpot1(spotIndex, "Medkit")
+            if item then table.insert(results, item) end
+        end
         if #results > 0 then
             for _, res in ipairs(results) do
                 teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify1("No Medkit found", 2)
         end
     end
 })
-
 
 ItemGrabber1:CreateButton({
     Name = "Hammer",
     Callback = function()
-        local results = findItemInAllSpots1("Hammer")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes1) do
+            local item = findItemInSpot1(spotIndex, "Hammer")
+            if item then table.insert(results, item) end
+        end
         if #results > 0 then
             for _, res in ipairs(results) do
                 teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify1("No Hammer found", 2)
         end
     end
 })
-
-
 
 ItemGrabber1:CreateButton({
     Name = "BloxyCola",
     Callback = function()
-        local results = findItemInAllSpots1("BloxyCola")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes1) do
+            local item = findItemInSpot1(spotIndex, "BloxyCola")
+            if item then table.insert(results, item) end
+        end
         if #results > 0 then
             for _, res in ipairs(results) do
                 teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify1("No BloxyCola found", 2)
         end
     end
 })
-
-
-
 
 ItemGrabber1:CreateButton({
     Name = "Battery",
     Callback = function()
-        local results = findItemInAllSpots1("Battery")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes1) do
+            local item = findItemInSpot1(spotIndex, "Battery")
+            if item then table.insert(results, item) end
+        end
         if #results > 0 then
             for _, res in ipairs(results) do
                 teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify1("No Battery found", 2)
         end
     end
 })
-
-ItemGrabber1:CreateButton({
-    Name = "Scan All Spots",
-    Callback = function()
-        local itemSpots = workspace:FindFirstChild("ItemSpots")
-        if not itemSpots then
-            itemNotify1("ItemSpots not found", 2)
-            return
-        end
-        
-        local totalFound = 0
-        for _, spotIndex in ipairs(spotIndexes1) do
-            local spot = itemSpots:GetChildren()[spotIndex]
-            if spot then
-                for _, itemName in ipairs(itemNames1) do
-                    local item = spot:FindFirstChild(itemName)
-                    if item then
-                        local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
-                        if target then
-                            totalFound = totalFound + 1
-                        end
-                    end
-                end
-            end
-        end
-        itemNotify1("Check console (F9) for details", 3)
-    end
-})
-
-local ItemGrabber2 = Window:CreateTab("item graber 2", 4483362458)
-
-local function itemNotify2(msg, duration)
-    Rayfield:Notify({
-        Title = "Item Grabber Night 2",
-        Content = msg,
-        Duration = duration or 2,
-        Image = 4483362458
-    })
-end
-
-local function teleportToItem2(cf, name)
-    local player = game.Players.LocalPlayer
-    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        player.Character.HumanoidRootPart.CFrame = cf
-        itemNotify2("Teleported to " .. name, 1)
-        return true
-    else
-        itemNotify2("Error: Character not found", 2)
-        return false
-    end
-end
 
 local spotIndexes2 = {3, 15, 8, 2, 13, 12, 11, 10, 9, 14, 7, 6, 5, 4}
 local itemNames2 = {"Wrench", "Medkit", "Hammer", "BloxyCola", "Battery"}
@@ -2158,13 +2786,10 @@ local itemNames2 = {"Wrench", "Medkit", "Hammer", "BloxyCola", "Battery"}
 local function findItemInSpot2(spotIndex, itemName)
     local itemSpots = workspace:FindFirstChild("ItemSpots")
     if not itemSpots then return nil end
-    
     local spot = itemSpots:GetChildren()[spotIndex]
     if not spot then return nil end
-    
     local item = spot:FindFirstChild(itemName)
     if not item then return nil end
-    
     local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
     if target and target:IsA("BasePart") then
         return {
@@ -2174,15 +2799,6 @@ local function findItemInSpot2(spotIndex, itemName)
         }
     end
     return nil
-end
-
-local function findItemInAllSpots2(itemName)
-    local results = {}
-    for _, spotIndex in ipairs(spotIndexes2) do
-        local item = findItemInSpot2(spotIndex, itemName)
-        if item then table.insert(results, item) end
-    end
-    return results
 end
 
 local function findAllItems2()
@@ -2196,147 +2812,103 @@ local function findAllItems2()
     return results
 end
 
-
-
-
-
-
-
+ItemGrabber2:CreateButton({
+    Name = "Grab All Items",
+    Callback = function()
+        local results = findAllItems2()
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem1(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        end
+    end
+})
 
 ItemGrabber2:CreateButton({
     Name = "Wrench",
     Callback = function()
-        local results = findItemInAllSpots2("Wrench")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes2) do
+            local item = findItemInSpot2(spotIndex, "Wrench")
+            if item then table.insert(results, item) end
+        end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem2(res.cframe, res.name)
+                teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify2("No Wrench found", 2)
         end
     end
 })
-
-
 
 ItemGrabber2:CreateButton({
     Name = "Medkit",
     Callback = function()
-        local results = findItemInAllSpots2("Medkit")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes2) do
+            local item = findItemInSpot2(spotIndex, "Medkit")
+            if item then table.insert(results, item) end
+        end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem2(res.cframe, res.name)
+                teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify2("No Medkit found", 2)
         end
     end
 })
-
-
 
 ItemGrabber2:CreateButton({
     Name = "Hammer",
     Callback = function()
-        local results = findItemInAllSpots2("Hammer")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes2) do
+            local item = findItemInSpot2(spotIndex, "Hammer")
+            if item then table.insert(results, item) end
+        end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem2(res.cframe, res.name)
+                teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify2("No Hammer found", 2)
         end
     end
 })
-
-
-
 
 ItemGrabber2:CreateButton({
     Name = "BloxyCola",
     Callback = function()
-        local results = findItemInAllSpots2("BloxyCola")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes2) do
+            local item = findItemInSpot2(spotIndex, "BloxyCola")
+            if item then table.insert(results, item) end
+        end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem2(res.cframe, res.name)
+                teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify2("No BloxyCola found", 2)
         end
     end
 })
-
-
 
 ItemGrabber2:CreateButton({
     Name = "Battery",
     Callback = function()
-        local results = findItemInAllSpots2("Battery")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes2) do
+            local item = findItemInSpot2(spotIndex, "Battery")
+            if item then table.insert(results, item) end
+        end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem2(res.cframe, res.name)
+                teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify2("No Battery found", 2)
         end
     end
 })
-
-ItemGrabber2:CreateButton({
-    Name = "Scan All Spots",
-    Callback = function()
-        local itemSpots = workspace:FindFirstChild("ItemSpots")
-        if not itemSpots then
-            itemNotify2("ItemSpots not found", 2)
-            return
-        end
-        
-        local totalFound = 0
-        for _, spotIndex in ipairs(spotIndexes2) do
-            local spot = itemSpots:GetChildren()[spotIndex]
-            if spot then
-                for _, itemName in ipairs(itemNames2) do
-                    local item = spot:FindFirstChild(itemName)
-                    if item then
-                        local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
-                        if target then
-                            totalFound = totalFound + 1
-                        end
-                    end
-                end
-            end
-        end
-        itemNotify2("Check console (F9) for details", 3)
-    end
-})
-
-local ItemGrabber3 = Window:CreateTab("item graber 3", 4483362458)
-
-local function itemNotify3(msg, duration)
-    Rayfield:Notify({
-        Title = "Item Grabber Night 3",
-        Content = msg,
-        Duration = duration or 2,
-        Image = 4483362458
-    })
-end
-
-local function teleportToItem3(cf, name)
-    local player = game.Players.LocalPlayer
-    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        player.Character.HumanoidRootPart.CFrame = cf
-        itemNotify3("Teleported to " .. name, 1)
-        return true
-    else
-        itemNotify3("Error: Character not found", 2)
-        return false
-    end
-end
 
 local spotIndexes3 = {14, 7, 2, 12, 11, 10, 9, 8, 13, 6, 5, 4, 3}
 local itemNames3 = {"Camera", "BloxyCola", "Marshmallow", "Battery"}
@@ -2344,19 +2916,15 @@ local itemNames3 = {"Camera", "BloxyCola", "Marshmallow", "Battery"}
 local function findItemInSpot3(spotIndex, itemName)
     local itemSpots = workspace:FindFirstChild("ItemSpots")
     if not itemSpots then return nil end
-    
     local spot
     if spotIndex == "Spot" then
         spot = itemSpots:FindFirstChild("Spot")
     else
         spot = itemSpots:GetChildren()[spotIndex]
     end
-    
     if not spot then return nil end
-    
     local item = spot:FindFirstChild(itemName)
     if not item then return nil end
-    
     local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
     if target and target:IsA("BasePart") then
         local spotName = (spotIndex == "Spot") and "Spot" or "Spot " .. spotIndex
@@ -2367,17 +2935,6 @@ local function findItemInSpot3(spotIndex, itemName)
         }
     end
     return nil
-end
-
-local function findItemInAllSpots3(itemName)
-    local results = {}
-    for _, spotIndex in ipairs(spotIndexes3) do
-        local item = findItemInSpot3(spotIndex, itemName)
-        if item then table.insert(results, item) end
-    end
-    local spotItem = findItemInSpot3("Spot", itemName)
-    if spotItem then table.insert(results, spotItem) end
-    return results
 end
 
 local function findAllItems3()
@@ -2395,117 +2952,91 @@ local function findAllItems3()
     return results
 end
 
-
-
-
-
-
-
+ItemGrabber3:CreateButton({
+    Name = "Grab All Items",
+    Callback = function()
+        local results = findAllItems3()
+        if #results > 0 then
+            for _, res in ipairs(results) do
+                teleportToItem1(res.cframe, res.name)
+                task.wait(0.3)
+            end
+        end
+    end
+})
 
 ItemGrabber3:CreateButton({
     Name = "Camera",
     Callback = function()
-        local results = findItemInAllSpots3("Camera")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes3) do
+            local item = findItemInSpot3(spotIndex, "Camera")
+            if item then table.insert(results, item) end
+        end
+        local spotItem = findItemInSpot3("Spot", "Camera")
+        if spotItem then table.insert(results, spotItem) end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem3(res.cframe, res.name)
+                teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify3("No Camera found", 2)
         end
     end
 })
-
-
 
 ItemGrabber3:CreateButton({
     Name = "BloxyCola",
     Callback = function()
-        local results = findItemInAllSpots3("BloxyCola")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes3) do
+            local item = findItemInSpot3(spotIndex, "BloxyCola")
+            if item then table.insert(results, item) end
+        end
+        local spotItem = findItemInSpot3("Spot", "BloxyCola")
+        if spotItem then table.insert(results, spotItem) end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem3(res.cframe, res.name)
+                teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify3("No BloxyCola found", 2)
         end
     end
 })
-
-
 
 ItemGrabber3:CreateButton({
     Name = "Marshmallow",
     Callback = function()
-        local results = findItemInAllSpots3("Marshmallow")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes3) do
+            local item = findItemInSpot3(spotIndex, "Marshmallow")
+            if item then table.insert(results, item) end
+        end
+        local spotItem = findItemInSpot3("Spot", "Marshmallow")
+        if spotItem then table.insert(results, spotItem) end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem3(res.cframe, res.name)
+                teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify3("No Marshmallow found", 2)
         end
     end
 })
-
-
 
 ItemGrabber3:CreateButton({
     Name = "Battery",
     Callback = function()
-        local results = findItemInAllSpots3("Battery")
+        local results = {}
+        for _, spotIndex in ipairs(spotIndexes3) do
+            local item = findItemInSpot3(spotIndex, "Battery")
+            if item then table.insert(results, item) end
+        end
+        local spotItem = findItemInSpot3("Spot", "Battery")
+        if spotItem then table.insert(results, spotItem) end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem3(res.cframe, res.name)
+                teleportToItem1(res.cframe, res.name)
                 task.wait(0.3)
             end
-        else
-            itemNotify3("No Battery found", 2)
         end
-    end
-})
-
-ItemGrabber3:CreateButton({
-    Name = "Scan All Spots",
-    Callback = function()
-        local itemSpots = workspace:FindFirstChild("ItemSpots")
-        if not itemSpots then
-            itemNotify3("ItemSpots not found", 2)
-            return
-        end
-        
-        local totalFound = 0
-        for _, spotIndex in ipairs(spotIndexes3) do
-            local spot = itemSpots:GetChildren()[spotIndex]
-            if spot then
-                for _, itemName in ipairs(itemNames3) do
-                    local item = spot:FindFirstChild(itemName)
-                    if item then
-                        local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
-                        if target then
-                            totalFound = totalFound + 1
-                        end
-                    end
-                end
-            end
-        end
-        
-        local spotSpecial = itemSpots:FindFirstChild("Spot")
-        if spotSpecial then
-            for _, itemName in ipairs(itemNames3) do
-                local item = spotSpecial:FindFirstChild(itemName)
-                if item then
-                    local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
-                    if target then
-                        totalFound = totalFound + 1
-                    end
-                end
-            end
-        end
-        
-        itemNotify3("Check console (F9) for details", 3)
     end
 })
