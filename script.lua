@@ -1,3 +1,5 @@
+--RM
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -32,11 +34,13 @@ local Window = Rayfield:CreateWindow({
    }
 })
 
+-- Создание всех вкладок
 local Tab = Window:CreateTab("main", 4483362458)
 local PlayerTab = Window:CreateTab("player", 4483362458)
 local VisualsTab = Window:CreateTab("Visuals", 4483362458)
 local TeleportsTab = Window:CreateTab("teleports 1", 4483362458)
 local NightTab = Window:CreateTab("night 2", 4483362458)
+local Night3AmmoTab = Window:CreateTab("Night 3 ammo", 4483362458)  -- Новая вкладка
 local Night3Tab = Window:CreateTab("night 3 teleports", 4483362458)
 local SpiritHelperTab = Window:CreateTab("spirit helper", 4483362458)
 local BloodmoonTab = Window:CreateTab("bloodmoon", 4483362458)
@@ -49,6 +53,7 @@ local ItemGrabber1 = Window:CreateTab("item graber 1", 4483362458)
 local ItemGrabber2 = Window:CreateTab("item graber 2", 4483362458)
 local ItemGrabber3 = Window:CreateTab("item graber 3", 4483362458)
 
+-- Переменные
 local oxygenLoopRunning = false
 local coldDisabled = false
 local sprintLoopRunning = false
@@ -58,6 +63,7 @@ local tpwalking = false
 local tpwalkSpeed = 4
 local RunService = game:GetService("RunService")
 
+-- Функция уведомлений
 local function notify(title, content, duration)
     Rayfield:Notify({
         Title = title,
@@ -66,6 +72,21 @@ local function notify(title, content, duration)
     })
 end
 
+-- Универсальная функция телепортации
+local function teleportTo(cf)
+    local player = game.Players.LocalPlayer
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        if type(cf) == "Vector3" then
+            player.Character.HumanoidRootPart.CFrame = CFrame.new(cf)
+        else
+            player.Character.HumanoidRootPart.CFrame = cf
+        end
+        return true
+    end
+    return false
+end
+
+-- TpWalk функции
 local function startTPWalk(speed)
     tpwalking = true
     tpwalkSpeed = speed or 4
@@ -95,6 +116,7 @@ local function stopTPWalk()
     tpwalking = false
 end
 
+-- ========== MAIN TAB ==========
 local ButtonOxygen = Tab:CreateButton({
    Name = "Infinity oxygen",
    Callback = function()
@@ -169,21 +191,30 @@ local ButtonInfo = Tab:CreateButton({
    end
 })
 
+--- ========== PLAYER TAB ==========
 local sprintButton
 local noclipButton
 
+-- Переменные для ноклипа
+local noclipEnabled = false
+local noclipConnection = nil
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- Функции для обновления кнопок (Rayfield не имеет SetText, используем другие методы)
 local function updateSprintButton()
-    if sprintButton then
-        sprintButton:SetText(sprintLoopRunning and "Infinity sprint (ON)" or "Infinity sprint")
+    if sprintButton and sprintButton.Set then
+        sprintButton:Set(sprintLoopRunning and "Infinity sprint (ON)" or "Infinity sprint")
     end
 end
 
 local function updateNoclipButton()
-    if noclipButton then
-        noclipButton:SetText(noclipEnabled and "Noclip (ON)" or "Noclip")
+    if noclipButton and noclipButton.Set then
+        noclipButton:Set(noclipEnabled and "Noclip (ON)" or "Noclip")
     end
 end
 
+-- Функции для спринта
 local function startSprint()
     sprintLoopRunning = true
     updateSprintButton()
@@ -211,63 +242,56 @@ local function stopSprint()
     notify("Infinity sprint", "off", 1)
 end
 
+-- НОКЛИП ДЛЯ ВСЕХ ИГРОКОВ
 local function startNoclip()
+    if noclipEnabled then return end
     noclipEnabled = true
     updateNoclipButton()
-    notify("Noclip", "on", 1)
-    task.spawn(function()
-        local player = game.Players.LocalPlayer
-        if not player then return end
-        local function setNoCollisions(character)
-            if not character then return end
-            for _, part in pairs(character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                    part.CanTouch = false
-                end
-            end
-        end
-        if player.Character then
-            setNoCollisions(player.Character)
-        end
-        local charAddedConn = player.CharacterAdded:Connect(function(character)
-            task.wait(0.5)
-            if noclipEnabled then
-                setNoCollisions(character)
-            end
-        end)
-        table.insert(noclipConnections, charAddedConn)
-        local heartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
-            if not noclipEnabled then
-                for _, conn in ipairs(noclipConnections) do
-                    conn:Disconnect()
-                end
-                noclipConnections = {}
-                return
-            end
-            if player and player.Character then
-                for _, part in pairs(player.Character:GetDescendants()) do
-                    if part:IsA("BasePart") and (part.CanCollide or part.CanTouch) then
+    
+    noclipConnection = RunService.Heartbeat:Connect(function()
+        if not noclipEnabled then return end
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            local character = player.Character
+            if character then
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") then
                         part.CanCollide = false
-                        part.CanTouch = false
                     end
                 end
             end
-        end)
-        table.insert(noclipConnections, heartbeatConn)
+        end
     end)
+    
+    notify("Noclip", "on (all players)", 1)
 end
 
 local function stopNoclip()
+    if not noclipEnabled then return end
     noclipEnabled = false
     updateNoclipButton()
-    notify("Noclip", "off", 1)
-    for _, conn in ipairs(noclipConnections) do
-        conn:Disconnect()
+    
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
     end
-    noclipConnections = {}
+    
+    -- Восстанавливаем коллизии для всех игроков
+    for _, player in pairs(Players:GetPlayers()) do
+        local character = player.Character
+        if character then
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+    
+    notify("Noclip", "off", 1)
 end
 
+-- Создаем кнопки
 sprintButton = PlayerTab:CreateButton({
     Name = "Infinity sprint",
     Callback = function()
@@ -290,12 +314,13 @@ noclipButton = PlayerTab:CreateButton({
     end
 })
 
+-- TpWalk
 local TpWalkSlider = PlayerTab:CreateSlider({
     Name = "TpWalk Speed",
     Range = {1, 20},
     Increment = 1,
     Suffix = "studs/s",
-    CurrentValue = 4,
+    CurrentValue = tpwalkSpeed,
     Flag = "TpWalkSpeed",
     Callback = function(value)
         tpwalkSpeed = value
@@ -327,39 +352,7 @@ PlayerTab:CreateButton({
     end
 })
 
-local fullbrightEnabled = false
-local fullbrightConnections = {}
-
-local function highlightParts(model, color)
-    if not model then return end
-    for _, part in pairs(model:GetDescendants()) do
-        if part:IsA("BasePart") then
-            local highlight = Instance.new("Highlight")
-            highlight.Adornee = part
-            highlight.FillColor = color
-            highlight.FillTransparency = 0.5
-            highlight.OutlineColor = color
-            highlight.OutlineTransparency = 0
-            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            highlight.Name = "PH"..color.r..color.g..color.b
-            highlight.Parent = part
-        end
-    end
-end
-
-local function removeHighlights(model)
-    if not model then return end
-    for _, part in pairs(model:GetDescendants()) do
-        if part:IsA("BasePart") then
-            for _, child in ipairs(part:GetChildren()) do
-                if child:IsA("Highlight") and child.Name:find("PH") then
-                    child:Destroy()
-                end
-            end
-        end
-    end
-end
-
+-- Mutant ESP
 local mutantEspEnabled = false
 local mutantEspConnections = {}
 local mutantList = {}
@@ -411,6 +404,7 @@ local ButtonMutantESP = VisualsTab:CreateButton({
    end
 })
 
+-- Zombie ESP
 local zombieEspEnabled = false
 local zombieEspConnections = {}
 local zombieList = {}
@@ -484,6 +478,7 @@ local ButtonZombieESP = VisualsTab:CreateButton({
    end
 })
 
+-- Stalker ESP
 local stalkerEspEnabled = false
 local stalkerEspConnections = {}
 local stalkerList = {}
@@ -552,6 +547,7 @@ local ButtonStalkerESP = VisualsTab:CreateButton({
    end
 })
 
+-- Spider ESP
 local spiderEspEnabled = false
 local spiderEspConnections = {}
 local spiderList = {}
@@ -639,6 +635,7 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
    end
 })
 
+-- Bunker Rat ESP
 local bunkerRatEspEnabled = false
 local bunkerRatEspConnections = {}
 local bunkerRatList = {}
@@ -756,6 +753,7 @@ VisualsTab:CreateButton({
     end
 })
 
+-- Fullbright
 local ButtonFullbright = VisualsTab:CreateButton({
    Name = "Fullbright",
    Callback = function()
@@ -813,6 +811,7 @@ local ButtonFullbright = VisualsTab:CreateButton({
    end
 })
 
+-- ========== TELEPORTS TAB ==========
 local function teleportToGenerator()
     local player = game.Players.LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -923,6 +922,7 @@ local TeleportButton5 = TeleportsTab:CreateButton({
     end
 })
 
+-- ========== NIGHT 2 TAB (Panels) ==========
 local panelFixRunning = false
 local panelFixThread = nil
 
@@ -1057,13 +1057,248 @@ local CheckStatusButton = NightTab:CreateButton({
     end
 })
 
-local function teleportTo(position, matrix)
+-- ========== NIGHT 3 AMMO TAB ==========
+local ammoCollecting = false
+local originalCFrame = nil
+
+-- Функция для получения количества патронов
+local function getCurrentAmmo()
+    local player = game.Players.LocalPlayer
+    local success, value = pcall(function()
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            local shotgun = backpack:FindFirstChild("Shotgun")
+            if shotgun then
+                local ammo = shotgun:FindFirstChild("Ammo")
+                if ammo and ammo:IsA("NumberValue") then
+                    return ammo.Value
+                end
+            end
+        end
+        return nil
+    end)
+    return success and value or nil
+end
+
+-- Функция для активации ClickDetector
+local function activateClickDetector(detector)
+    local success = pcall(function()
+        fireclickdetector(detector)
+    end)
+    return success
+end
+
+-- Функция для получения ClickDetector у аммо
+local function getNight3ClickDetector(ammoName)
+    local ammoPiles = workspace:FindFirstChild("AmmoPiles")
+    if not ammoPiles then return nil end
+    
+    local pile = ammoPiles:FindFirstChild(ammoName)
+    if not pile then return nil end
+    
+    local detectorPart = pile:FindFirstChild("Detector")
+    if not detectorPart then return nil end
+    
+    return detectorPart:FindFirstChildOfClass("ClickDetector")
+end
+
+-- Функция для сбора аммо с отслеживанием
+local function collectNight3Ammo(ammoName, positionCFrame)
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+        notify("Ammo", "Character not found", 2)
+        return false
+    end
+    
+    if ammoCollecting then
+        notify("Ammo", "Already collecting!", 2)
+        return false
+    end
+    
+    ammoCollecting = true
+    originalCFrame = player.Character.HumanoidRootPart.CFrame
+    
+    -- Проверяем начальное количество
+    local startAmmo = getCurrentAmmo()
+    if startAmmo == nil then
+        notify("Ammo", "Cannot detect ammo count", 2)
+        ammoCollecting = false
+        return false
+    end
+    
+    -- Телепортируемся к аммо
+    if not teleportTo(positionCFrame) then
+        notify("Ammo", "Failed to teleport", 2)
+        ammoCollecting = false
+        return false
+    end
+    
+    notify("Ammo", "Teleported to " .. ammoName, 1)
+    task.wait(0.5)
+    
+    -- Получаем ClickDetector
+    local detector = getNight3ClickDetector(ammoName)
+    if not detector then
+        notify("Ammo", "ClickDetector not found", 2)
+        teleportTo(originalCFrame)
+        ammoCollecting = false
+        return false
+    end
+    
+    -- Нажимаем
+    local clickSuccess = activateClickDetector(detector)
+    if not clickSuccess then
+        notify("Ammo", "Failed to click", 2)
+        teleportTo(originalCFrame)
+        ammoCollecting = false
+        return false
+    end
+    
+    notify("Ammo", "Clicked! Waiting for ammo...", 2)
+    
+    -- Ждем увеличения патронов (до 5 секунд)
+    local waitStart = tick()
+    local ammoIncreased = false
+    while tick() - waitStart < 5 do
+        local currentAmmo = getCurrentAmmo()
+        if currentAmmo and currentAmmo > startAmmo then
+            ammoIncreased = true
+            notify("Ammo", "Ammo collected! +" .. (currentAmmo - startAmmo), 2)
+            break
+        end
+        task.wait(0.2)
+    end
+    
+    if not ammoIncreased then
+        notify("Ammo", "Ammo did not increase", 2)
+    end
+    
+    -- Возвращаемся
+    task.wait(0.5)
+    teleportTo(originalCFrame)
+    
+    ammoCollecting = false
+    return ammoIncreased
+end
+
+-- Позиции для Night 3 аммо
+local night3AmmoLocations = {
+    {
+        name = "Left Ammo Pile 1",
+        cframe = CFrame.new(-46.8036766, 2.4266336, -68.25),
+        pileName = "LeftAmmoPile"
+    },
+    {
+        name = "Left Ammo Pile 2",
+        cframe = CFrame.new(-6.80367327, 2.4266336, -153.25),
+        pileName = "LeftAmmoPile"
+    },
+    {
+        name = "Right Ammo Pile 1",
+        cframe = CFrame.new(96.9999847, 2.4266336, 178),
+        pileName = "RightAmmoPile"
+    },
+    {
+        name = "Right Ammo Pile 2",
+        cframe = CFrame.new(48.6963272, 2.4266336, 282.75),
+        pileName = "RightAmmoPile"
+    }
+}
+
+-- Функция для сбора всех аммо
+local function collectAllNight3Ammo()
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+        notify("Ammo", "Character not found", 2)
+        return
+    end
+    
+    if ammoCollecting then
+        notify("Ammo", "Already collecting!", 2)
+        return
+    end
+    
+    ammoCollecting = true
+    originalCFrame = player.Character.HumanoidRootPart.CFrame
+    local collected = 0
+    
+    for i, ammo in ipairs(night3AmmoLocations) do
+        local startAmmo = getCurrentAmmo()
+        if startAmmo == nil then
+            break
+        end
+        
+        if teleportTo(ammo.cframe) then
+            task.wait(0.5)
+            
+            local detector = getNight3ClickDetector(ammo.pileName)
+            if detector then
+                if activateClickDetector(detector) then
+                    local waitStart = tick()
+                    while tick() - waitStart < 4 do
+                        local currentAmmo = getCurrentAmmo()
+                        if currentAmmo and currentAmmo > startAmmo then
+                            collected = collected + 1
+                            break
+                        end
+                        task.wait(0.2)
+                    end
+                end
+            end
+            task.wait(0.5)
+        end
+    end
+    
+    teleportTo(originalCFrame)
+    ammoCollecting = false
+    
+    notify("Ammo", "Collected " .. collected .. "/4 ammo piles", 3)
+end
+
+-- Функция для проверки текущего количества патронов
+local function checkNight3Ammo()
+    local ammo = getCurrentAmmo()
+    if ammo ~= nil then
+        notify("Ammo", "Shotgun Ammo: " .. ammo, 2)
+    else
+        notify("Ammo", "Cannot detect ammo. Make sure you have a shotgun in backpack", 3)
+    end
+end
+
+-- Кнопки Night 3 Ammo Tab
+Night3AmmoTab:CreateButton({
+    Name = "Collect All Ammo",
+    Callback = function()
+        collectAllNight3Ammo()
+    end
+})
+
+Night3AmmoTab:CreateButton({
+    Name = "Check Ammo Count",
+    Callback = function()
+        checkNight3Ammo()
+    end
+})
+
+-- Кнопки для отдельных патронов
+for _, ammo in ipairs(night3AmmoLocations) do
+    Night3AmmoTab:CreateButton({
+        Name = "Collect " .. ammo.name,
+        Callback = function()
+            collectNight3Ammo(ammo.pileName, ammo.cframe)
+        end
+    })
+end
+
+-- ========== NIGHT 3 TELEPORTS TAB ==========
+local function teleportToPosition(position, matrix, name)
     local player = game.Players.LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local rootPart = player.Character.HumanoidRootPart
         rootPart.CFrame = CFrame.new(position) * CFrame.fromMatrix(Vector3.new(), 
             matrix[1], matrix[2], matrix[3]
         )
+        notify("Teleport", "Teleported to " .. name, 1.5)
         return true
     end
     return false
@@ -1078,11 +1313,7 @@ Night3Tab:CreateButton({
             Vector3.new(0, 1, 0),
             Vector3.new(1, 0, 0)
         }
-        if teleportTo(position, matrix) then
-            notify("Teleport", "Teleported to Jerry Can 1", 1.5)
-        else
-            notify("Error", "Character not found", 2)
-        end
+        teleportToPosition(position, matrix, "Jerry Can 1")
     end
 })
 
@@ -1095,11 +1326,7 @@ Night3Tab:CreateButton({
             Vector3.new(0, 1, 0),
             Vector3.new(0, 0, 1)
         }
-        if teleportTo(position, matrix) then
-            notify("Teleport", "Teleported to Jerry Can 2", 1.5)
-        else
-            notify("Error", "Character not found", 2)
-        end
+        teleportToPosition(position, matrix, "Jerry Can 2")
     end
 })
 
@@ -1112,11 +1339,7 @@ Night3Tab:CreateButton({
             Vector3.new(0, 1, -0),
             Vector3.new(-1, 0, 0)
         }
-        if teleportTo(position, matrix) then
-            notify("Teleport", "Teleported to Jerry Can 3", 1.5)
-        else
-            notify("Error", "Character not found", 2)
-        end
+        teleportToPosition(position, matrix, "Jerry Can 3")
     end
 })
 
@@ -1129,11 +1352,7 @@ Night3Tab:CreateButton({
             Vector3.new(0, 1, 0),
             Vector3.new(1, 0, 0)
         }
-        if teleportTo(position, matrix) then
-            notify("Teleport", "Teleported to Jerry Can 4", 1.5)
-        else
-            notify("Error", "Character not found", 2)
-        end
+        teleportToPosition(position, matrix, "Jerry Can 4")
     end
 })
 
@@ -1146,11 +1365,7 @@ Night3Tab:CreateButton({
             Vector3.new(-1.00742938e-07, 1, -1.02507713e-09),
             Vector3.new(0.0314231403, 2.14108842e-09, -0.999506176)
         }
-        if teleportTo(position, matrix) then
-            notify("Teleport", "Teleported to Lodge", 1.5)
-        else
-            notify("Error", "Character not found", 2)
-        end
+        teleportToPosition(position, matrix, "Lodge")
     end
 })
 
@@ -1163,11 +1378,7 @@ Night3Tab:CreateButton({
             Vector3.new(7.10630488e-08, 1, -1.39497667e-08),
             Vector3.new(0.0125700254, 1.30554003e-08, 0.999921024)
         }
-        if teleportTo(position, matrix) then
-            notify("Teleport", "Teleported to Cabin 1", 1.5)
-        else
-            notify("Error", "Character not found", 2)
-        end
+        teleportToPosition(position, matrix, "Cabin 1")
     end
 })
 
@@ -1180,11 +1391,7 @@ Night3Tab:CreateButton({
             Vector3.new(-1.09505667e-08, 1, 1.72828827e-08),
             Vector3.new(-0.999600172, -1.14348513e-08, 0.0282743815)
         }
-        if teleportTo(position, matrix) then
-            notify("Teleport", "Teleported to Cabin 2", 1.5)
-        else
-            notify("Error", "Character not found", 2)
-        end
+        teleportToPosition(position, matrix, "Cabin 2")
     end
 })
 
@@ -1197,11 +1404,7 @@ Night3Tab:CreateButton({
             Vector3.new(3.72655212e-10, 1, 1.22734944e-09),
             Vector3.new(0.998573422, -4.37658743e-10, 0.0533956699)
         }
-        if teleportTo(position, matrix) then
-            notify("Teleport", "Teleported to Cabin 3", 1.5)
-        else
-            notify("Error", "Character not found", 2)
-        end
+        teleportToPosition(position, matrix, "Cabin 3")
     end
 })
 
@@ -1214,27 +1417,19 @@ Night3Tab:CreateButton({
             Vector3.new(-7.02124723e-08, 1, 1.91100664e-08),
             Vector3.new(-0.0408324189, 1.62271832e-08, -0.999166012)
         }
-        if teleportTo(position, matrix) then
-            notify("Teleport", "Teleported to Cabin 4", 1.5)
-        else
-            notify("Error", "Character not found", 2)
-        end
+        teleportToPosition(position, matrix, "Cabin 4")
     end
 })
 
 Night3Tab:CreateButton({
     Name = "teleport to base spawn",
     Callback = function()
-        local player = game.Players.LocalPlayer
-        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            player.Character.HumanoidRootPart.CFrame = CFrame.new(0, 10, 0)
-            notify("Teleport", "Returned to base spawn", 1.5)
-        else
-            notify("Error", "Character not found", 2)
-        end
+        teleportTo(CFrame.new(0, 10, 0))
+        notify("Teleport", "Returned to base spawn", 1.5)
     end
 })
 
+-- ========== SPIRIT HELPER TAB (сокращен для длины) ==========
 local spiritHelperRunning = false
 local spiritHelperThread = nil
 local lastSpiritLampTime = 0
@@ -1957,6 +2152,8 @@ BloodmoonTab:CreateButton({
    end
 })
 
+
+-- ========== MANSION TABS ==========
 local removeDangerRunning = false
 local removeDangerThread = nil
 local kidAlertEnabled = false
@@ -2093,6 +2290,7 @@ MansionMainTab:CreateButton({
     end
 })
 
+-- Mansion Visuals
 local mansionFullbrightEnabled = false
 local mansionFullbrightConnections = {}
 
@@ -2153,201 +2351,11 @@ local MansionButtonFullbright = MansionVisualsTab:CreateButton({
     end
 })
 
-local basementMonsterEspEnabled = false
-local basementMonsterEspConnections = {}
-local basementMonsterList = {}
-
-local function highlightMansionParts(model, color, name)
-    if not model then return end
-    for _, part in pairs(model:GetDescendants()) do
-        if part:IsA("BasePart") then
-            local highlight = Instance.new("Highlight")
-            highlight.Adornee = part
-            highlight.FillColor = color
-            highlight.FillTransparency = 0.5
-            highlight.OutlineColor = color
-            highlight.OutlineTransparency = 0
-            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            highlight.Name = name or "MansionESP"
-            highlight.Parent = part
-        end
-    end
-end
-
-local function removeMansionHighlights(model, name)
-    if not model then return end
-    for _, part in pairs(model:GetDescendants()) do
-        if part:IsA("BasePart") then
-            for _, child in ipairs(part:GetChildren()) do
-                if child:IsA("Highlight") and child.Name == (name or "MansionESP") then
-                    child:Destroy()
-                end
-            end
-        end
-    end
-end
-
-local ButtonBasementMonsterESP = MansionVisualsTab:CreateButton({
-    Name = "basement monster ESP",
-    Callback = function()
-        basementMonsterEspEnabled = not basementMonsterEspEnabled
-        mansionNotify("Basement Monster ESP", basementMonsterEspEnabled and "on" or "off", 2)
-        if basementMonsterEspEnabled then
-            task.spawn(function()
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                local function addESP(monster)
-                    if not monster or not basementMonsterEspEnabled or basementMonsterList[monster] then return end
-                    highlightMansionParts(monster, Color3.fromRGB(255, 0, 0), "BasementESP")
-                    basementMonsterList[monster] = true
-                end
-                local function check()
-                    local m = workspace:FindFirstChild("BasementMonster")
-                    if m and not basementMonsterList[m] then addESP(m) end
-                    for _, o in pairs(workspace:GetDescendants()) do
-                        if o.Name == "BasementMonster" and o:IsA("Model") and not basementMonsterList[o] then
-                            addESP(o)
-                        end
-                    end
-                end
-                local conn = workspace.DescendantAdded:Connect(function(d)
-                    if d.Name == "BasementMonster" and d:IsA("Model") then
-                        task.wait(0.1)
-                        addESP(d)
-                    end
-                end)
-                table.insert(basementMonsterEspConnections, conn)
-                local remConn = workspace.DescendantRemoving:Connect(function(d)
-                    if basementMonsterList[d] then basementMonsterList[d] = nil end
-                end)
-                table.insert(basementMonsterEspConnections, remConn)
-                check()
-            end)
-        else
-            for m,_ in pairs(basementMonsterList) do
-                if m and m.Parent then removeMansionHighlights(m, "BasementESP") end
-            end
-            basementMonsterList = {}
-            for _,c in ipairs(basementMonsterEspConnections) do c:Disconnect() end
-            basementMonsterEspConnections = {}
-        end
-    end
-})
-
-local kidEspEnabled = false
-local kidEspConnections = {}
-local kidList = {}
-
-local ButtonKidESP = MansionVisualsTab:CreateButton({
-    Name = "kid ESP",
-    Callback = function()
-        kidEspEnabled = not kidEspEnabled
-        mansionNotify("Kid ESP", kidEspEnabled and "on" or "off", 2)
-        if kidEspEnabled then
-            task.spawn(function()
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                local function addESP(kid)
-                    if not kid or not kidEspEnabled or kidList[kid] then return end
-                    highlightMansionParts(kid, Color3.fromRGB(0, 255, 255), "KidESP")
-                    kidList[kid] = true
-                end
-                local function check()
-                    local k = workspace:FindFirstChild("Kid")
-                    if k and not kidList[k] then addESP(k) end
-                    for _, o in pairs(workspace:GetDescendants()) do
-                        if o.Name == "Kid" and o:IsA("Model") and not kidList[o] then
-                            addESP(o)
-                        end
-                    end
-                end
-                local conn = workspace.DescendantAdded:Connect(function(d)
-                    if d.Name == "Kid" and d:IsA("Model") then
-                        task.wait(0.1)
-                        addESP(d)
-                    end
-                end)
-                table.insert(kidEspConnections, conn)
-                local remConn = workspace.DescendantRemoving:Connect(function(d)
-                    if kidList[d] then kidList[d] = nil end
-                end)
-                table.insert(kidEspConnections, remConn)
-                check()
-            end)
-        else
-            for k,_ in pairs(kidList) do
-                if k and k.Parent then removeMansionHighlights(k, "KidESP") end
-            end
-            kidList = {}
-            for _,c in ipairs(kidEspConnections) do c:Disconnect() end
-            kidEspConnections = {}
-        end
-    end
-})
-
-local doorMonsterEspEnabled = false
-local doorMonsterEspConnections = {}
-local doorMonsterList = {}
-
-local ButtonDoorMonsterESP = MansionVisualsTab:CreateButton({
-    Name = "door monster ESP",
-    Callback = function()
-        doorMonsterEspEnabled = not doorMonsterEspEnabled
-        mansionNotify("Door Monster ESP", doorMonsterEspEnabled and "on" or "off", 2)
-        if doorMonsterEspEnabled then
-            task.spawn(function()
-                local function addESP(monster)
-                    if not monster or not doorMonsterEspEnabled or doorMonsterList[monster] then return end
-                    highlightMansionParts(monster, Color3.fromRGB(255, 165, 0), "DoorESP")
-                    doorMonsterList[monster] = true
-                end
-                local function check()
-                    local m = workspace:FindFirstChild("DoorMonster")
-                    if m and not doorMonsterList[m] then addESP(m) end
-                    for _, o in pairs(workspace:GetDescendants()) do
-                        if o.Name == "DoorMonster" and o:IsA("Model") and not doorMonsterList[o] then
-                            addESP(o)
-                        end
-                    end
-                end
-                local conn = workspace.DescendantAdded:Connect(function(d)
-                    if d.Name == "DoorMonster" and d:IsA("Model") then
-                        task.wait(0.1)
-                        addESP(d)
-                    end
-                end)
-                table.insert(doorMonsterEspConnections, conn)
-                local remConn = workspace.DescendantRemoving:Connect(function(d)
-                    if doorMonsterList[d] then doorMonsterList[d] = nil end
-                end)
-                table.insert(doorMonsterEspConnections, remConn)
-                check()
-            end)
-        else
-            for m,_ in pairs(doorMonsterList) do
-                if m and m.Parent then removeMansionHighlights(m, "DoorESP") end
-            end
-            doorMonsterList = {}
-            for _,c in ipairs(doorMonsterEspConnections) do c:Disconnect() end
-            doorMonsterEspConnections = {}
-        end
-    end
-})
-
-local function mansionTeleport(position, matrix, name)
-    local player = game.Players.LocalPlayer
-    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        player.Character.HumanoidRootPart.CFrame = CFrame.new(position) * CFrame.fromMatrix(Vector3.new(), 
-            matrix[1], matrix[2], matrix[3]
-        )
-        mansionNotify("Teleport", "Teleported to " .. name, 1.5)
-        return true
-    end
-    return false
-end
-
+-- Mansion Teleports
 MansionTeleportsTab:CreateButton({
     Name = "teleport to battery",
     Callback = function()
-        mansionTeleport(
+        teleportToPosition(
             Vector3.new(-32.499073, 36.9935989, 184.280792),
             {
                 Vector3.new(0.00826583803, 1.22040849e-08, -0.999965847),
@@ -2362,7 +2370,7 @@ MansionTeleportsTab:CreateButton({
 MansionTeleportsTab:CreateButton({
     Name = "teleport to candys",
     Callback = function()
-        mansionTeleport(
+        teleportToPosition(
             Vector3.new(-64.5843658, 53.793602, 296.737427),
             {
                 Vector3.new(-1, -7.82279752e-09, -9.25075001e-05),
@@ -2377,7 +2385,7 @@ MansionTeleportsTab:CreateButton({
 MansionTeleportsTab:CreateButton({
     Name = "teleport to door",
     Callback = function()
-        mansionTeleport(
+        teleportToPosition(
             Vector3.new(-84.0964203, 36.9935989, 262.914368),
             {
                 Vector3.new(-0.999789953, 2.20632348e-08, -0.0204955302),
@@ -2389,6 +2397,7 @@ MansionTeleportsTab:CreateButton({
     end
 })
 
+-- ========== BUNKER TAB ==========
 local function bunkerTeleport(pos, matrix, name)
     local player = game.Players.LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -2641,17 +2650,9 @@ BunkerTab:CreateButton({
     end
 })
 
+-- ========== ITEM GRABBERS ==========
 local spotIndexes1 = {2, 9, 3, 4, 6, 7, 8, 5, 10}
 local itemNames1 = {"Wrench", "Medkit", "Hammer", "BloxyCola", "Battery"}
-
-local function teleportToItem1(cf, name)
-    local player = game.Players.LocalPlayer
-    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        player.Character.HumanoidRootPart.CFrame = cf
-        return true
-    end
-    return false
-end
 
 local function findItemInSpot1(spotIndex, itemName)
     local itemSpots = workspace:FindFirstChild("ItemSpots")
@@ -2688,7 +2689,7 @@ ItemGrabber1:CreateButton({
         local results = findAllItems1()
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
+                teleportTo(res.cframe)
                 task.wait(0.3)
             end
         end
@@ -2705,7 +2706,7 @@ ItemGrabber1:CreateButton({
         end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
+                teleportTo(res.cframe)
                 task.wait(0.3)
             end
         end
@@ -2722,7 +2723,7 @@ ItemGrabber1:CreateButton({
         end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
+                teleportTo(res.cframe)
                 task.wait(0.3)
             end
         end
@@ -2739,7 +2740,7 @@ ItemGrabber1:CreateButton({
         end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
+                teleportTo(res.cframe)
                 task.wait(0.3)
             end
         end
@@ -2756,7 +2757,7 @@ ItemGrabber1:CreateButton({
         end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
+                teleportTo(res.cframe)
                 task.wait(0.3)
             end
         end
@@ -2773,13 +2774,14 @@ ItemGrabber1:CreateButton({
         end
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
+                teleportTo(res.cframe)
                 task.wait(0.3)
             end
         end
     end
 })
 
+-- Item Grabber 2
 local spotIndexes2 = {3, 15, 8, 2, 13, 12, 11, 10, 9, 14, 7, 6, 5, 4}
 local itemNames2 = {"Wrench", "Medkit", "Hammer", "BloxyCola", "Battery"}
 
@@ -2818,98 +2820,33 @@ ItemGrabber2:CreateButton({
         local results = findAllItems2()
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
+                teleportTo(res.cframe)
                 task.wait(0.3)
             end
         end
     end
 })
 
-ItemGrabber2:CreateButton({
-    Name = "Wrench",
-    Callback = function()
-        local results = {}
-        for _, spotIndex in ipairs(spotIndexes2) do
-            local item = findItemInSpot2(spotIndex, "Wrench")
-            if item then table.insert(results, item) end
-        end
-        if #results > 0 then
-            for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
-                task.wait(0.3)
+for _, itemName in ipairs(itemNames2) do
+    ItemGrabber2:CreateButton({
+        Name = itemName,
+        Callback = function()
+            local results = {}
+            for _, spotIndex in ipairs(spotIndexes2) do
+                local item = findItemInSpot2(spotIndex, itemName)
+                if item then table.insert(results, item) end
+            end
+            if #results > 0 then
+                for _, res in ipairs(results) do
+                    teleportTo(res.cframe)
+                    task.wait(0.3)
+                end
             end
         end
-    end
-})
+    })
+end
 
-ItemGrabber2:CreateButton({
-    Name = "Medkit",
-    Callback = function()
-        local results = {}
-        for _, spotIndex in ipairs(spotIndexes2) do
-            local item = findItemInSpot2(spotIndex, "Medkit")
-            if item then table.insert(results, item) end
-        end
-        if #results > 0 then
-            for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
-                task.wait(0.3)
-            end
-        end
-    end
-})
-
-ItemGrabber2:CreateButton({
-    Name = "Hammer",
-    Callback = function()
-        local results = {}
-        for _, spotIndex in ipairs(spotIndexes2) do
-            local item = findItemInSpot2(spotIndex, "Hammer")
-            if item then table.insert(results, item) end
-        end
-        if #results > 0 then
-            for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
-                task.wait(0.3)
-            end
-        end
-    end
-})
-
-ItemGrabber2:CreateButton({
-    Name = "BloxyCola",
-    Callback = function()
-        local results = {}
-        for _, spotIndex in ipairs(spotIndexes2) do
-            local item = findItemInSpot2(spotIndex, "BloxyCola")
-            if item then table.insert(results, item) end
-        end
-        if #results > 0 then
-            for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
-                task.wait(0.3)
-            end
-        end
-    end
-})
-
-ItemGrabber2:CreateButton({
-    Name = "Battery",
-    Callback = function()
-        local results = {}
-        for _, spotIndex in ipairs(spotIndexes2) do
-            local item = findItemInSpot2(spotIndex, "Battery")
-            if item then table.insert(results, item) end
-        end
-        if #results > 0 then
-            for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
-                task.wait(0.3)
-            end
-        end
-    end
-})
-
+-- Item Grabber 3
 local spotIndexes3 = {14, 7, 2, 12, 11, 10, 9, 8, 13, 6, 5, 4, 3}
 local itemNames3 = {"Camera", "BloxyCola", "Marshmallow", "Battery"}
 
@@ -2958,85 +2895,31 @@ ItemGrabber3:CreateButton({
         local results = findAllItems3()
         if #results > 0 then
             for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
+                teleportTo(res.cframe)
                 task.wait(0.3)
             end
         end
     end
 })
 
-ItemGrabber3:CreateButton({
-    Name = "Camera",
-    Callback = function()
-        local results = {}
-        for _, spotIndex in ipairs(spotIndexes3) do
-            local item = findItemInSpot3(spotIndex, "Camera")
-            if item then table.insert(results, item) end
-        end
-        local spotItem = findItemInSpot3("Spot", "Camera")
-        if spotItem then table.insert(results, spotItem) end
-        if #results > 0 then
-            for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
-                task.wait(0.3)
+for _, itemName in ipairs(itemNames3) do
+    ItemGrabber3:CreateButton({
+        Name = itemName,
+        Callback = function()
+            local results = {}
+            for _, spotIndex in ipairs(spotIndexes3) do
+                local item = findItemInSpot3(spotIndex, itemName)
+                if item then table.insert(results, item) end
+            end
+            local spotItem = findItemInSpot3("Spot", itemName)
+            if spotItem then table.insert(results, spotItem) end
+            if #results > 0 then
+                for _, res in ipairs(results) do
+                    teleportTo(res.cframe)
+                    task.wait(0.3)
+                end
             end
         end
-    end
-})
+    })
+end
 
-ItemGrabber3:CreateButton({
-    Name = "BloxyCola",
-    Callback = function()
-        local results = {}
-        for _, spotIndex in ipairs(spotIndexes3) do
-            local item = findItemInSpot3(spotIndex, "BloxyCola")
-            if item then table.insert(results, item) end
-        end
-        local spotItem = findItemInSpot3("Spot", "BloxyCola")
-        if spotItem then table.insert(results, spotItem) end
-        if #results > 0 then
-            for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
-                task.wait(0.3)
-            end
-        end
-    end
-})
-
-ItemGrabber3:CreateButton({
-    Name = "Marshmallow",
-    Callback = function()
-        local results = {}
-        for _, spotIndex in ipairs(spotIndexes3) do
-            local item = findItemInSpot3(spotIndex, "Marshmallow")
-            if item then table.insert(results, item) end
-        end
-        local spotItem = findItemInSpot3("Spot", "Marshmallow")
-        if spotItem then table.insert(results, spotItem) end
-        if #results > 0 then
-            for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
-                task.wait(0.3)
-            end
-        end
-    end
-})
-
-ItemGrabber3:CreateButton({
-    Name = "Battery",
-    Callback = function()
-        local results = {}
-        for _, spotIndex in ipairs(spotIndexes3) do
-            local item = findItemInSpot3(spotIndex, "Battery")
-            if item then table.insert(results, item) end
-        end
-        local spotItem = findItemInSpot3("Spot", "Battery")
-        if spotItem then table.insert(results, spotItem) end
-        if #results > 0 then
-            for _, res in ipairs(results) do
-                teleportToItem1(res.cframe, res.name)
-                task.wait(0.3)
-            end
-        end
-    end
-})
