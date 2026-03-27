@@ -193,24 +193,23 @@ local ButtonInfo = Tab:CreateButton({
 })
 
 --- ========== PLAYER TAB ==========
+-- ========== PLAYER TAB ==========
 local sprintButton
 local noclipButton
 
--- Переменные для ноклипа
+-- Переменные для ноклипа (старая версия)
 local noclipEnabled = false
-local noclipConnection = nil
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local noclipConnections = {}
 
--- Функции для обновления кнопок (Rayfield не имеет SetText, используем другие методы)
+-- Функции для обновления кнопок
 local function updateSprintButton()
-    if sprintButton and sprintButton.Set then
+    if sprintButton then
         sprintButton:Set(sprintLoopRunning and "Infinity sprint (ON)" or "Infinity sprint")
     end
 end
 
 local function updateNoclipButton()
-    if noclipButton and noclipButton.Set then
+    if noclipButton then
         noclipButton:Set(noclipEnabled and "Noclip (ON)" or "Noclip")
     end
 end
@@ -243,53 +242,69 @@ local function stopSprint()
     notify("Infinity sprint", "off", 1)
 end
 
--- НОКЛИП ДЛЯ ВСЕХ ИГРОКОВ
+-- СТАРЫЙ НОКЛИП (только для локального игрока)
 local function startNoclip()
-    if noclipEnabled then return end
     noclipEnabled = true
     updateNoclipButton()
+    notify("Noclip", "on", 1)
     
-    noclipConnection = RunService.Heartbeat:Connect(function()
-        if not noclipEnabled then return end
+    task.spawn(function()
+        local player = game.Players.LocalPlayer
+        if not player then return end
         
-        for _, player in pairs(Players:GetPlayers()) do
-            local character = player.Character
-            if character then
-                for _, part in pairs(character:GetDescendants()) do
-                    if part:IsA("BasePart") then
+        local function setNoCollisions(character)
+            if not character then return end
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                    part.CanTouch = false
+                end
+            end
+        end
+        
+        if player.Character then
+            setNoCollisions(player.Character)
+        end
+        
+        local charAddedConn = player.CharacterAdded:Connect(function(character)
+            task.wait(0.5)
+            if noclipEnabled then
+                setNoCollisions(character)
+            end
+        end)
+        table.insert(noclipConnections, charAddedConn)
+        
+        local heartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
+            if not noclipEnabled then
+                for _, conn in ipairs(noclipConnections) do
+                    conn:Disconnect()
+                end
+                noclipConnections = {}
+                return
+            end
+            
+            if player and player.Character then
+                for _, part in pairs(player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and (part.CanCollide or part.CanTouch) then
                         part.CanCollide = false
+                        part.CanTouch = false
                     end
                 end
             end
-        end
+        end)
+        table.insert(noclipConnections, heartbeatConn)
     end)
-    
-    notify("Noclip", "on (all players)", 1)
 end
 
 local function stopNoclip()
-    if not noclipEnabled then return end
     noclipEnabled = false
     updateNoclipButton()
-    
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
-    end
-    
-    -- Восстанавливаем коллизии для всех игроков
-    for _, player in pairs(Players:GetPlayers()) do
-        local character = player.Character
-        if character then
-            for _, part in pairs(character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-            end
-        end
-    end
-    
     notify("Noclip", "off", 1)
+    
+    for _, conn in ipairs(noclipConnections) do
+        conn:Disconnect()
+    end
+    noclipConnections = {}
 end
 
 -- Создаем кнопки
