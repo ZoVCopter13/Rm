@@ -192,7 +192,6 @@ local ButtonInfo = Tab:CreateButton({
    end
 })
 
---- ========== PLAYER TAB ==========
 -- ========== PLAYER TAB ==========
 local sprintButton
 local noclipButton
