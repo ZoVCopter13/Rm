@@ -367,6 +367,41 @@ PlayerTab:CreateButton({
     end
 })
 
+-- ========== VISUALS TAB ==========
+local fullbrightEnabled = false
+local fullbrightConnections = {}
+
+-- Функции для ESP подсветки
+local function highlightParts(model, color)
+    if not model then return end
+    for _, part in pairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local highlight = Instance.new("Highlight")
+            highlight.Adornee = part
+            highlight.FillColor = color
+            highlight.FillTransparency = 0.5
+            highlight.OutlineColor = color
+            highlight.OutlineTransparency = 0
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.Name = "PH"..color.r..color.g..color.b
+            highlight.Parent = part
+        end
+    end
+end
+
+local function removeHighlights(model)
+    if not model then return end
+    for _, part in pairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then
+            for _, child in ipairs(part:GetChildren()) do
+                if child:IsA("Highlight") and child.Name:find("PH") then
+                    child:Destroy()
+                end
+            end
+        end
+    end
+end
+
 -- Mutant ESP
 local mutantEspEnabled = false
 local mutantEspConnections = {}
@@ -768,7 +803,10 @@ VisualsTab:CreateButton({
     end
 })
 
--- Fullbright
+-- Fullbright (оставьте как есть или добавьте переменные fullbrightEnabled и fullbrightConnections)
+local fullbrightEnabled = false
+local fullbrightConnections = {}
+
 local ButtonFullbright = VisualsTab:CreateButton({
    Name = "Fullbright",
    Callback = function()
