@@ -455,13 +455,15 @@ local ButtonMutantESP = VisualsTab:CreateButton({
 })
 
 -- Zombie ESP
+-- Zombie ESP
 local zombieEspEnabled = false
 local zombieEspConnections = {}
 local zombieList = {}
 local zombieTypes = {
     "FrozenZombie",
     "FrozenBloodZombie", 
-    "Zombie"
+    "Zombie",
+    "BloodZombie"
 }
 
 local ButtonZombieESP = VisualsTab:CreateButton({
@@ -486,7 +488,22 @@ local ButtonZombieESP = VisualsTab:CreateButton({
                end
                local function updateZombieESP()
                    if not Assets then return end
+                   -- Проверяем все типы зомби
                    for _, zombieName in ipairs(zombieTypes) do
+                       -- Ищем в Workspace
+                       local zombieInWorkspace = workspace:FindFirstChild(zombieName)
+                       if zombieInWorkspace and zombieInWorkspace:IsA("Model") then
+                           addESPToZombie(zombieInWorkspace)
+                       end
+                       -- Ищем в Zombies папке
+                       local zombiesFolder = workspace:FindFirstChild("Zombies")
+                       if zombiesFolder then
+                           local zombieInFolder = zombiesFolder:FindFirstChild(zombieName)
+                           if zombieInFolder and zombieInFolder:IsA("Model") then
+                               addESPToZombie(zombieInFolder)
+                           end
+                       end
+                       -- Ищем во всех потомках
                        for _, obj in pairs(workspace:GetDescendants()) do
                            if obj.Name == zombieName and obj:IsA("Model") then
                                addESPToZombie(obj)
@@ -512,6 +529,15 @@ local ButtonZombieESP = VisualsTab:CreateButton({
                end)
                table.insert(zombieEspConnections, childRemovedConn)
                updateZombieESP()
+               
+               -- Периодическая проверка (на случай появления в папке Zombies)
+               local function periodicCheck()
+                   while zombieEspEnabled do
+                       updateZombieESP()
+                       task.wait(5)
+                   end
+               end
+               task.spawn(periodicCheck)
            end)
        else
            for zombie, _ in pairs(zombieList) do
