@@ -34,7 +34,7 @@ local Window = Rayfield:CreateWindow({
    }
 })
 
--- Создание всех вкладок
+
 -- Создание всех вкладок
 local Tab = Window:CreateTab("main", 4483362458)
 local PlayerTab = Window:CreateTab("player", 4483362458)
@@ -367,11 +367,11 @@ PlayerTab:CreateButton({
     end
 })
 
+
 -- ========== VISUALS TAB ==========
 local fullbrightEnabled = false
 local fullbrightConnections = {}
 
--- Функции для ESP подсветки
 local function highlightParts(model, color)
     if not model then return end
     for _, part in pairs(model:GetDescendants()) do
@@ -400,6 +400,13 @@ local function removeHighlights(model)
             end
         end
     end
+end
+
+local function addESPForModel(model, color, list, espEnabled)
+    if not model or not espEnabled then return end
+    if list[model] then return end
+    highlightParts(model, color)
+    list[model] = true
 end
 
 -- Mutant ESP
@@ -455,7 +462,6 @@ local ButtonMutantESP = VisualsTab:CreateButton({
 })
 
 -- Zombie ESP
--- Zombie ESP
 local zombieEspEnabled = false
 local zombieEspConnections = {}
 local zombieList = {}
@@ -488,14 +494,7 @@ local ButtonZombieESP = VisualsTab:CreateButton({
                end
                local function updateZombieESP()
                    if not Assets then return end
-                   -- Проверяем все типы зомби
                    for _, zombieName in ipairs(zombieTypes) do
-                       -- Ищем в Workspace
-                       local zombieInWorkspace = workspace:FindFirstChild(zombieName)
-                       if zombieInWorkspace and zombieInWorkspace:IsA("Model") then
-                           addESPToZombie(zombieInWorkspace)
-                       end
-                       -- Ищем в Zombies папке
                        local zombiesFolder = workspace:FindFirstChild("Zombies")
                        if zombiesFolder then
                            local zombieInFolder = zombiesFolder:FindFirstChild(zombieName)
@@ -503,7 +502,6 @@ local ButtonZombieESP = VisualsTab:CreateButton({
                                addESPToZombie(zombieInFolder)
                            end
                        end
-                       -- Ищем во всех потомках
                        for _, obj in pairs(workspace:GetDescendants()) do
                            if obj.Name == zombieName and obj:IsA("Model") then
                                addESPToZombie(obj)
@@ -530,7 +528,6 @@ local ButtonZombieESP = VisualsTab:CreateButton({
                table.insert(zombieEspConnections, childRemovedConn)
                updateZombieESP()
                
-               -- Периодическая проверка (на случай появления в папке Zombies)
                local function periodicCheck()
                    while zombieEspEnabled do
                        updateZombieESP()
@@ -807,6 +804,181 @@ local ButtonBunkerRatESP = VisualsTab:CreateButton({
     end
 })
 
+-- WeirdDad ESP (из ReplicatedStorage)
+local weirdDadEspEnabled = false
+local weirdDadEspConnections = {}
+local weirdDadList = {}
+
+local ButtonWeirdDadESP = VisualsTab:CreateButton({
+    Name = "WeirdDad ESP",
+    Callback = function()
+        weirdDadEspEnabled = not weirdDadEspEnabled
+        notify("WeirdDad ESP", weirdDadEspEnabled and "on" or "off", 2)
+        if weirdDadEspEnabled then
+            task.spawn(function()
+                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                
+                local function addESPToWeirdDad(weirdDad)
+                    if not weirdDad or not weirdDadEspEnabled or weirdDadList[weirdDad] then return end
+                    highlightParts(weirdDad, Color3.fromRGB(255, 128, 0))
+                    weirdDadList[weirdDad] = true
+                end
+                
+                local function checkForWeirdDad()
+                    local weirdDadInWorkspace = workspace:FindFirstChild("WeirdDad")
+                    if weirdDadInWorkspace and not weirdDadList[weirdDadInWorkspace] then
+                        addESPToWeirdDad(weirdDadInWorkspace)
+                    end
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        if obj.Name == "WeirdDad" and obj:IsA("Model") and not weirdDadList[obj] then
+                            addESPToWeirdDad(obj)
+                        end
+                    end
+                end
+                
+                -- Отслеживаем появление в ReplicatedStorage
+                local weirdDadInStorage = ReplicatedStorage:FindFirstChild("WeirdDad")
+                if weirdDadInStorage then
+                    local function onWeirdDadMoved(child)
+                        if child.Name == "WeirdDad" and child:IsA("Model") then
+                            task.wait(0.1)
+                            addESPToWeirdDad(child)
+                        end
+                    end
+                    local movedConn = weirdDadInStorage.ChildAdded:Connect(onWeirdDadMoved)
+                    table.insert(weirdDadEspConnections, movedConn)
+                end
+                
+                -- Отслеживаем появление в workspace
+                local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
+                    if not weirdDadEspEnabled then return end
+                    if descendant.Name == "WeirdDad" and descendant:IsA("Model") then
+                        task.wait(0.1)
+                        addESPToWeirdDad(descendant)
+                    end
+                end)
+                table.insert(weirdDadEspConnections, descendantConn)
+                
+                local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
+                    if weirdDadList[descendant] then
+                        weirdDadList[descendant] = nil
+                    end
+                end)
+                table.insert(weirdDadEspConnections, childRemovedConn)
+                
+                checkForWeirdDad()
+                
+                local function periodicCheck()
+                    while weirdDadEspEnabled do
+                        checkForWeirdDad()
+                        task.wait(5)
+                    end
+                end
+                task.spawn(periodicCheck)
+            end)
+        else
+            for weirdDad, _ in pairs(weirdDadList) do
+                if weirdDad and weirdDad.Parent then
+                    removeHighlights(weirdDad)
+                end
+            end
+            weirdDadList = {}
+            for _, conn in ipairs(weirdDadEspConnections) do
+                conn:Disconnect()
+            end
+            weirdDadEspConnections = {}
+        end
+    end
+})
+
+-- Winterhorn ESP (из ReplicatedStorage)
+local winterhornEspEnabled = false
+local winterhornEspConnections = {}
+local winterhornList = {}
+
+local ButtonWinterhornESP = VisualsTab:CreateButton({
+    Name = "Winterhorn ESP",
+    Callback = function()
+        winterhornEspEnabled = not winterhornEspEnabled
+        notify("Winterhorn ESP", winterhornEspEnabled and "on" or "off", 2)
+        if winterhornEspEnabled then
+            task.spawn(function()
+                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                
+                local function addESPToWinterhorn(winterhorn)
+                    if not winterhorn or not winterhornEspEnabled or winterhornList[winterhorn] then return end
+                    highlightParts(winterhorn, Color3.fromRGB(0, 255, 255))
+                    winterhornList[winterhorn] = true
+                end
+                
+                local function checkForWinterhorn()
+                    local winterhornInWorkspace = workspace:FindFirstChild("Winterhorn")
+                    if winterhornInWorkspace and not winterhornList[winterhornInWorkspace] then
+                        addESPToWinterhorn(winterhornInWorkspace)
+                    end
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        if obj.Name == "Winterhorn" and obj:IsA("Model") and not winterhornList[obj] then
+                            addESPToWinterhorn(obj)
+                        end
+                    end
+                end
+                
+                -- Отслеживаем появление в ReplicatedStorage
+                local winterhornInStorage = ReplicatedStorage:FindFirstChild("Winterhorn")
+                if winterhornInStorage then
+                    local function onWinterhornMoved(child)
+                        if child.Name == "Winterhorn" and child:IsA("Model") then
+                            task.wait(0.1)
+                            addESPToWinterhorn(child)
+                        end
+                    end
+                    local movedConn = winterhornInStorage.ChildAdded:Connect(onWinterhornMoved)
+                    table.insert(winterhornEspConnections, movedConn)
+                end
+                
+                -- Отслеживаем появление в workspace
+                local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
+                    if not winterhornEspEnabled then return end
+                    if descendant.Name == "Winterhorn" and descendant:IsA("Model") then
+                        task.wait(0.1)
+                        addESPToWinterhorn(descendant)
+                    end
+                end)
+                table.insert(winterhornEspConnections, descendantConn)
+                
+                local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
+                    if winterhornList[descendant] then
+                        winterhornList[descendant] = nil
+                    end
+                end)
+                table.insert(winterhornEspConnections, childRemovedConn)
+                
+                checkForWinterhorn()
+                
+                local function periodicCheck()
+                    while winterhornEspEnabled do
+                        checkForWinterhorn()
+                        task.wait(5)
+                    end
+                end
+                task.spawn(periodicCheck)
+            end)
+        else
+            for winterhorn, _ in pairs(winterhornList) do
+                if winterhorn and winterhorn.Parent then
+                    removeHighlights(winterhorn)
+                end
+            end
+            winterhornList = {}
+            for _, conn in ipairs(winterhornEspConnections) do
+                conn:Disconnect()
+            end
+            winterhornEspConnections = {}
+        end
+    end
+})
+
+-- Check Bunker Rat
 VisualsTab:CreateButton({
     Name = "Check Bunker Rat",
     Callback = function()
@@ -829,7 +1001,7 @@ VisualsTab:CreateButton({
     end
 })
 
--- Fullbright (оставьте как есть или добавьте переменные fullbrightEnabled и fullbrightConnections)
+-- Fullbright
 local fullbrightEnabled = false
 local fullbrightConnections = {}
 
@@ -890,6 +1062,7 @@ local ButtonFullbright = VisualsTab:CreateButton({
    end
 })
 
+-- ========== TELEPORTS TAB ==========
 -- ========== TELEPORTS TAB ==========
 local function teleportToGenerator()
     local player = game.Players.LocalPlayer
@@ -966,6 +1139,21 @@ local function teleportToBedroom()
     end
 end
 
+local function teleportToKitchen()
+    local player = game.Players.LocalPlayer
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local rootPart = player.Character.HumanoidRootPart
+        local position = Vector3.new(-42.4974709, 7.79997444, -78.5954285)
+        local xVector = Vector3.new(0.0261499137, -8.25942337e-09, 0.999658048)
+        local yVector = Vector3.new(5.64396174e-08, 1, 6.78585321e-09)
+        local zVector = Vector3.new(-0.999658048, 5.62428681e-08, 0.0261499137)
+        rootPart.CFrame = CFrame.fromMatrix(position, xVector, yVector, zVector)
+        notify("Teleport", "Teleported to kitchen", 2)
+    else
+        notify("Error", "Character not found", 2)
+    end
+end
+
 local TeleportButton1 = TeleportsTab:CreateButton({
     Name = "teleport to generator",
     Callback = function()
@@ -998,6 +1186,13 @@ local TeleportButton5 = TeleportsTab:CreateButton({
     Name = "teleport to bedroom",
     Callback = function()
         teleportToBedroom()
+    end
+})
+
+local TeleportButton6 = TeleportsTab:CreateButton({
+    Name = "teleport to kitchen",
+    Callback = function()
+        teleportToKitchen()
     end
 })
 -- ========== FIX TOWER ==========
