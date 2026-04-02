@@ -3182,55 +3182,29 @@ BunkerTab:CreateButton({
     end
 })
 
--- ========== ITEM GRABBER (ОБЪЕДИНЕННЫЙ) ==========
+
+-- ========== ITEM GRABBER (ПРОСТАЯ ВЕРСИЯ) ==========
 local itemSpots = workspace:FindFirstChild("ItemSpots")
 local itemNames = {"Wrench", "Medkit", "Hammer", "BloxyCola", "Battery", "Camera", "Marshmallow"}
 
-local function teleportToItem(item)
-    if item and item:IsA("BasePart") then
-        teleportTo(item.CFrame)
-        task.wait(0.2)
+local function grabItem(itemName)
+    if not itemSpots then
+        notify("Item Grabber", "ItemSpots not found", 2)
+        return
     end
-end
-
-local function findItemsInSpots(spotIndexes)
-    local results = {}
-    if not itemSpots then return results end
     
-    for _, spotIndex in ipairs(spotIndexes) do
-        local spot = itemSpots:GetChildren()[spotIndex]
-        if spot then
-            for _, itemName in ipairs(itemNames) do
-                local item = spot:FindFirstChild(itemName)
-                if item then
-                    local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
-                    if target and target:IsA("BasePart") then
-                        table.insert(results, {name = itemName, cframe = target.CFrame})
-                    end
-                end
+    for _, spot in ipairs(itemSpots:GetChildren()) do
+        local item = spot:FindFirstChild(itemName)
+        if item then
+            local target = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart") or (item:IsA("BasePart") and item)
+            if target and target:IsA("BasePart") then
+                teleportTo(target.CFrame)
+                task.wait(0.2)
+                return
             end
         end
     end
-    return results
-end
-
--- Объединенные индексы спотов
-local allSpotIndexes = {2, 9, 3, 4, 6, 7, 8, 5, 10, 14, 12, 11, 13, 15}
-local uniqueSpotIndexes = {}
-for _, v in ipairs(allSpotIndexes) do
-    if not uniqueSpotIndexes[v] then
-        uniqueSpotIndexes[v] = true
-        table.insert(uniqueSpotIndexes, v)
-    end
-end
-
-local function grabItem(itemName)
-    local items = findItemsInSpots(uniqueSpotIndexes)
-    for _, item in ipairs(items) do
-        if item.name == itemName then
-            teleportToItem(item.cframe)
-        end
-    end
+    notify("Item Grabber", itemName .. " not found", 2)
 end
 
 for _, itemName in ipairs(itemNames) do
