@@ -40,7 +40,7 @@ local Tab = Window:CreateTab("main", 4483362458)
 local PlayerTab = Window:CreateTab("player", 4483362458)
 local VisualsTab = Window:CreateTab("Visuals", 4483362458)
 local TeleportsTab = Window:CreateTab("teleports 1", 4483362458)
-local FixTowerTab = Window:CreateTab("fix tower", 4483362458)
+local FixTowerTab = Window:CreateTab("auto wire", 4483362458)
 local NightTab = Window:CreateTab("night 2", 4483362458)
 local Night3AmmoTab = Window:CreateTab("Night 3 ammo", 4483362458)
 local Night3Tab = Window:CreateTab("night 3 teleports", 4483362458)
@@ -1200,7 +1200,7 @@ local ButtonFullbright = VisualsTab:CreateButton({
 
 
 
--- ========== TELEPORTS TAB ==========
+
 -- ========== TELEPORTS TAB ==========
 local function teleportToGenerator()
     local player = game.Players.LocalPlayer
@@ -1333,236 +1333,149 @@ local TeleportButton6 = TeleportsTab:CreateButton({
         teleportToKitchen()
     end
 })
--- ========== FIX TOWER ==========
--- ========== FIX TOWER ==========
-local fixTowerAutoEnabled = false
-local fixTowerThread = nil
-local fixTowerOriginalCFrame = nil
-local fixTowerLastStates = {false, false, false, false}
-local fixTowerIsFixing = false
+-- ========== AUTO WIRE TAB ==========
+local autoRepairEnabled = false
+local autoRepairThread = nil
+local OneTime = false
 
-local function fixTowerHasWrench()
-    local player = game.Players.LocalPlayer
-    if not player then return false end
-    
-    local success = pcall(function()
-        local backpack = player:FindFirstChild("Backpack")
-        if backpack then
-            local wrench = backpack:FindFirstChild("Wrench")
-            if wrench then
-                return true
-            end
-        end
-        
-        local character = player.Character
-        if character then
-            local wrench = character:FindFirstChild("Wrench")
-            if wrench then
-                return true
-            end
-        end
-    end)
-    
-    return success or false
+local RS = game:GetService("ReplicatedStorage")
+local Remotes = RS.Remotes
+
+local function bypassAntiCheat()
+    local disabledAC = false
+    local remotesFolder = game.ReplicatedStorage.Remotes
+    local AnticheatRemote = remotesFolder.Kick
+    if disabledAC then return end
+
+    AnticheatRemote.Name = ""
+    Instance.new("RemoteEvent", remotesFolder).Name = "Kick"
+    disabledAC = true
 end
 
-local function fixTowerGetWireStatus(wireNumber)
-    local success, result = pcall(function()
-        local fuseBox = workspace:FindFirstChild("FuseBox")
-        if not fuseBox then return nil end
-        
-        local wires = fuseBox:FindFirstChild("Wires")
-        if not wires then return nil end
-        
-        local wire = wires:FindFirstChild(tostring(wireNumber))
-        if not wire then return nil end
-        
-        local highlight = wire:FindFirstChild("Highlight")
-        if not highlight then return nil end
-        
-        if highlight:IsA("Highlight") then
-            return highlight.Enabled
-        elseif highlight:IsA("BoolValue") then
-            return highlight.Value
-        else
-            local success2, enabled = pcall(function()
-                return highlight.Enabled
-            end)
-            if success2 then
-                return enabled
-            end
-        end
-        
-        return nil
-    end)
-    
-    return success and result or nil
-end
-
-local function fixTowerWaitForFix(wireNumber)
-    local startTime = tick()
-    
-    while tick() - startTime < 10 do
-        local status = fixTowerGetWireStatus(wireNumber)
-        if status == false then
-            return true
-        end
-        task.wait(0.2)
-    end
-    
-    return false
-end
-
-local function fixTowerTeleport()
-    local player = game.Players.LocalPlayer
-    if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-        return false
-    end
-    
-    local position = Vector3.new(-429.696381, 153.949982, -16.9267139)
-    local xVector = Vector3.new(0.77367574, 5.28210009e-09, 0.633581758)
-    local yVector = Vector3.new(-2.64950195e-09, 1, -5.10154274e-09)
-    local zVector = Vector3.new(-0.633581758, 2.26826358e-09, 0.77367574)
-    
-    local fixCFrame = CFrame.fromMatrix(position, xVector, yVector, zVector)
-    
-    if type(fixCFrame) == "Vector3" then
-        player.Character.HumanoidRootPart.CFrame = CFrame.new(fixCFrame)
-    else
-        player.Character.HumanoidRootPart.CFrame = fixCFrame
-    end
-    return true
-end
-
-local function fixTowerFixAll()
-    local player = game.Players.LocalPlayer
-    if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+local function startAutoRepair()
+    if autoRepairEnabled then
+        notify("Auto Wire", "Already running!", 2)
         return
     end
     
-    if fixTowerIsFixing then
-        return
-    end
+    bypassAntiCheat()
     
-    if not fixTowerHasWrench() then
-        return
-    end
+    autoRepairEnabled = true
+    notify("Auto Wire", "Started!", 2)
     
-    fixTowerIsFixing = true
-    fixTowerOriginalCFrame = player.Character.HumanoidRootPart.CFrame
-    
-    local brokenWires = {}
-    for wireNum = 1, 4 do
-        local status = fixTowerGetWireStatus(wireNum)
-        if status == true then
-            table.insert(brokenWires, wireNum)
+    autoRepairThread = task.spawn(function()
+        local Fuses = workspace:FindFirstChild("FuseBox")
+        if not Fuses then 
+            notify("Auto Wire", "FuseBox not found!", 2)
+            autoRepairEnabled = false
+            return
         end
-    end
-    
-    for _, wireNum in ipairs(brokenWires) do
-        if fixTowerGetWireStatus(wireNum) == true then
-            if fixTowerTeleport() then
-                task.wait(0.5)
-                fixTowerWaitForFix(wireNum)
-                task.wait(0.5)
-            end
-        end
-    end
-    
-    if fixTowerOriginalCFrame then
-        if type(fixTowerOriginalCFrame) == "Vector3" then
-            player.Character.HumanoidRootPart.CFrame = CFrame.new(fixTowerOriginalCFrame)
-        else
-            player.Character.HumanoidRootPart.CFrame = fixTowerOriginalCFrame
-        end
-    end
-    
-    fixTowerIsFixing = false
-end
-
-local function fixTowerStartAuto()
-    if fixTowerAutoEnabled then
-        return
-    end
-    
-    for wireNum = 1, 4 do
-        fixTowerLastStates[wireNum] = fixTowerGetWireStatus(wireNum) == true
-    end
-    
-    fixTowerAutoEnabled = true
-    notify("Fix Tower", "Auto Fix Started", 2)
-    
-    fixTowerThread = task.spawn(function()
-        while fixTowerAutoEnabled do
-            task.wait(0.5)
-            
-            for wireNum = 1, 4 do
-                local currentStatus = fixTowerGetWireStatus(wireNum) == true
-                local previousStatus = fixTowerLastStates[wireNum]
-                
-                if previousStatus == false and currentStatus == true then
-                    if fixTowerHasWrench() then
-                        local player = game.Players.LocalPlayer
-                        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                            fixTowerOriginalCFrame = player.Character.HumanoidRootPart.CFrame
-                            
-                            if fixTowerTeleport() then
-                                fixTowerWaitForFix(wireNum)
-                                task.wait(0.5)
-                                if fixTowerOriginalCFrame then
-                                    if type(fixTowerOriginalCFrame) == "Vector3" then
-                                        player.Character.HumanoidRootPart.CFrame = CFrame.new(fixTowerOriginalCFrame)
-                                    else
-                                        player.Character.HumanoidRootPart.CFrame = fixTowerOriginalCFrame
-                                    end
-                                end
-                            end
-                        end
-                    end
+        
+        while autoRepairEnabled do
+            for _, Wire in ipairs(Fuses.Wires:GetChildren()) do
+                local Sparkles = Wire:FindFirstChild("Sparkles")
+                if Sparkles and Sparkles.Enabled and not OneTime then
+                    OneTime = true
+                    pcall(function()
+                        Remotes.Repair:FireServer(Wire)
+                    end)
+                    task.wait(0.5)
+                    OneTime = false
                 end
             end
-            
-            for wireNum = 1, 4 do
-                fixTowerLastStates[wireNum] = fixTowerGetWireStatus(wireNum) == true
-            end
+            task.wait(0.5)
         end
     end)
 end
 
-local function fixTowerStopAuto()
-    if not fixTowerAutoEnabled then
+local function stopAutoRepair()
+    if not autoRepairEnabled then
+        notify("Auto Wire", "Not running!", 2)
         return
     end
     
-    fixTowerAutoEnabled = false
-    if fixTowerThread then
-        task.cancel(fixTowerThread)
-        fixTowerThread = nil
+    autoRepairEnabled = false
+    if autoRepairThread then
+        task.cancel(autoRepairThread)
+        autoRepairThread = nil
     end
-    notify("Fix Tower", "Auto Fix Stopped", 2)
+    notify("Auto Wire", "Stopped!", 2)
+end
+
+local function repairWire(wireNumber)
+    local Fuses = workspace:FindFirstChild("FuseBox")
+    if Fuses then
+        local Wire = Fuses.Wires:FindFirstChild(tostring(wireNumber))
+        if Wire then
+            pcall(function()
+                Remotes.Repair:FireServer(Wire)
+            end)
+            notify("Auto Wire", "Fixing wire " .. wireNumber, 2)
+        end
+    end
+end
+
+local function repairAllWires()
+    for i = 1, 4 do
+        repairWire(i)
+        task.wait(0.3)
+    end
+    notify("Auto Wire", "All wires processed", 2)
 end
 
 FixTowerTab:CreateButton({
-    Name = "START Auto Fix Monitor",
+    Name = "START Auto Wire",
     Callback = function()
-        fixTowerStartAuto()
+        startAutoRepair()
     end
 })
 
 FixTowerTab:CreateButton({
-    Name = "STOP Auto Fix Monitor",
+    Name = "STOP Auto Wire",
     Callback = function()
-        fixTowerStopAuto()
+        stopAutoRepair()
     end
 })
 
 FixTowerTab:CreateButton({
-    Name = "Fix All Wires",
+    Name = "────────── Manual ──────────",
+    Callback = function() end
+})
+
+FixTowerTab:CreateButton({
+    Name = "Repair Wire 1",
     Callback = function()
-        fixTowerFixAll()
+        repairWire(1)
     end
 })
--- ========== NIGHT 2 TAB (Panels) ==========
+
+FixTowerTab:CreateButton({
+    Name = "Repair Wire 2",
+    Callback = function()
+        repairWire(2)
+    end
+})
+
+FixTowerTab:CreateButton({
+    Name = "Repair Wire 3",
+    Callback = function()
+        repairWire(3)
+    end
+})
+
+FixTowerTab:CreateButton({
+    Name = "Repair Wire 4",
+    Callback = function()
+        repairWire(4)
+    end
+})
+
+FixTowerTab:CreateButton({
+    Name = "Repair All Wires",
+    Callback = function()
+        repairAllWires()
+    end
+})
 -- ========== NIGHT 2 TAB (Panels) ==========
 local panelFixRunning = false
 local panelFixThread = nil
