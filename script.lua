@@ -113,6 +113,7 @@ local function stopTPWalk()
 end
 
 -- ========== MAIN TAB ==========
+-- ========== MAIN TAB ==========
 local ButtonOxygen = Tab:CreateButton({
    Name = "Infinity oxygen",
    Callback = function()
@@ -213,15 +214,55 @@ local ButtonInfinityHunger = Tab:CreateButton({
    end
 })
 
+local function generateRandomName()
+    local length = math.random(20, 35)
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local result = ""
+    for i = 1, length do
+        local randomIndex = math.random(1, #chars)
+        result = result .. string.sub(chars, randomIndex, randomIndex)
+    end
+    return result
+end
+
+local ButtonRenameKick = Tab:CreateButton({
+   Name = "Bypass anti cheat",
+   Callback = function()
+       local success = pcall(function()
+           local replicatedStorage = game:GetService("ReplicatedStorage")
+           local remotes = replicatedStorage:FindFirstChild("Remotes")
+           
+           local kickRemote = nil
+           
+           if remotes then
+               kickRemote = remotes:FindFirstChild("Kick")
+           end
+           
+           if not kickRemote then
+               kickRemote = replicatedStorage:FindFirstChild("Kick")
+           end
+           
+           if kickRemote then
+               local newName = generateRandomName()
+               kickRemote.Name = newName
+               notify("Anti Cheat", "Kick remote renamed to: " .. newName, 3)
+           else
+               notify("Anti Cheat", "Kick remote not found", 2)
+           end
+       end)
+       
+       if not success then
+           notify("Anti Cheat", "Failed to rename kick remote", 2)
+       end
+   end
+})
+
 local ButtonInfo = Tab:CreateButton({
    Name = "Info",
    Callback = function()
        notify("Info", "script ZOVCOPTER by NAGIEV", 5)
    end
 })
-
-
--- ========== PLAYER TAB ==========
 -- ========== PLAYER TAB ==========
 local sprintButton
 local noclipButton
