@@ -113,7 +113,6 @@ local function stopTPWalk()
 end
 
 -- ========== MAIN TAB ==========
--- ========== MAIN TAB ==========
 local ButtonOxygen = Tab:CreateButton({
    Name = "Infinity oxygen",
    Callback = function()
@@ -226,7 +225,7 @@ local function generateRandomName()
 end
 
 local ButtonRenameKick = Tab:CreateButton({
-   Name = "Bypass anti cheat",
+   Name = "Rename Kick Remote",
    Callback = function()
        local success = pcall(function()
            local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -253,6 +252,31 @@ local ButtonRenameKick = Tab:CreateButton({
        
        if not success then
            notify("Anti Cheat", "Failed to rename kick remote", 2)
+       end
+   end
+})
+
+local ButtonRemoveBarriers = Tab:CreateButton({
+   Name = "Remove All Barriers",
+   Callback = function()
+       local success = pcall(function()
+           local doors = workspace:FindFirstChild("Doors")
+           if doors then
+               local removed = 0
+               for _, closet in pairs(doors:GetChildren()) do
+                   if closet.Name == "Closet" and closet:FindFirstChild("Ignore") then
+                       closet.Ignore:Destroy()
+                       removed = removed + 1
+                   end
+               end
+               notify("Barriers", "Removed " .. removed .. " closet barriers", 2)
+           else
+               notify("Barriers", "Doors folder not found", 2)
+           end
+       end)
+       
+       if not success then
+           notify("Barriers", "Failed to remove barriers", 2)
        end
    end
 })
@@ -1201,7 +1225,7 @@ local ButtonFullbright = VisualsTab:CreateButton({
 
 
 
--- ========== TELEPORTS TAB ==========
+-- ========== TELEPORTS 1 TAB ==========
 local function teleportToGenerator()
     local player = game.Players.LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -1292,6 +1316,107 @@ local function teleportToKitchen()
     end
 end
 
+-- Auto Fuel функция
+local autoFuelWaiting = false
+local autoFuelThread = nil
+local autoFuelOriginalCFrame = nil
+
+local function autoFuelClickDetector(detector)
+    if detector then
+        pcall(function()
+            fireclickdetector(detector)
+        end)
+        return true
+    end
+    return false
+end
+
+local function refuelGenerator()
+    if autoFuelWaiting then
+        notify("Auto Fuel", "Already running!", 2)
+        return
+    end
+    
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character then
+        notify("Error", "Character not found", 2)
+        return
+    end
+    
+    autoFuelWaiting = true
+    autoFuelOriginalCFrame = player.Character.HumanoidRootPart.CFrame
+    
+    local pos1 = CFrame.new(-76.3613968, 4.67498159, -128.592514) * CFrame.fromMatrix(Vector3.new(), 
+        Vector3.new(0.048255261, -4.31380487e-09, -0.998835027),
+        Vector3.new(-2.40804674e-08, 1, -5.48220092e-09),
+        Vector3.new(0.998835027, 2.43169591e-08, 0.048255261)
+    )
+    
+    if not teleportTo(pos1) then
+        notify("Error", "Failed to teleport", 2)
+        autoFuelWaiting = false
+        return
+    end
+    
+    task.wait(0.3)
+    
+    local shack = workspace:FindFirstChild("Shack")
+    if shack then
+        local jerryCan = shack:FindFirstChild("JerryCan")
+        if jerryCan then
+            local detector = jerryCan:FindFirstChild("ClickDetector")
+            if detector then
+                autoFuelClickDetector(detector)
+            end
+        end
+    end
+    
+    notify("Refuel", "Waiting for JerryCan...", 2)
+    
+    autoFuelThread = task.spawn(function()
+        local hasJerryCan = false
+        local jerryCanAppeared = false
+        
+        while autoFuelWaiting do
+            local playerChar = player.Character
+            
+            local currentHasJerryCan = false
+            if playerChar then
+                for _, child in pairs(playerChar:GetChildren()) do
+                    if child.Name == "JerryCan" then
+                        currentHasJerryCan = true
+                        break
+                    end
+                end
+            end
+            
+            if currentHasJerryCan and not hasJerryCan then
+                hasJerryCan = true
+                jerryCanAppeared = true
+                notify("Refuel", "JerryCan in inventory! Waiting...", 2)
+            end
+            
+            if not currentHasJerryCan and hasJerryCan then
+                hasJerryCan = false
+                break
+            end
+            
+            task.wait(0.2)
+        end
+        
+        if jerryCanAppeared then
+            teleportTo(autoFuelOriginalCFrame)
+            notify("Refuel", "Generator refueled! Returned.", 2)
+        else
+            teleportTo(autoFuelOriginalCFrame)
+            notify("Refuel", "Failed, returning...", 2)
+        end
+        
+        autoFuelWaiting = false
+        autoFuelThread = nil
+    end)
+end
+
 local TeleportButton1 = TeleportsTab:CreateButton({
     Name = "teleport to generator",
     Callback = function()
@@ -1331,6 +1456,13 @@ local TeleportButton6 = TeleportsTab:CreateButton({
     Name = "teleport to kitchen",
     Callback = function()
         teleportToKitchen()
+    end
+})
+
+local RefuelButton = TeleportsTab:CreateButton({
+    Name = "refuel generator",
+    Callback = function()
+        refuelGenerator()
     end
 })
 -- ========== AUTO WIRE TAB ==========
