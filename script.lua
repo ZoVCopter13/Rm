@@ -2832,10 +2832,11 @@ SpiritHelperTab:CreateButton({
 
 
 
--- ========== MANSION TABS ==========
--- ========== MANSION TABS ==========
-local removeDangerRunning = false
-local removeDangerThread = nil
+-- MAIN MANSION TAB
+-- Скрипт для mansion с Danger Reset, Kid Alert и другими функциями
+
+local dangerLoopEnabled = false
+local dangerThread = nil
 local kidAlertEnabled = false
 local kidAlertThread = nil
 local kidDetected = false
@@ -2849,67 +2850,72 @@ local function mansionNotify(title, content, duration)
     })
 end
 
+local function findDanger()
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character then return nil end
+    
+    local danger = character:FindFirstChild("Danger")
+    if danger then
+        return danger
+    end
+    
+    return nil
+end
+
 local function setDangerToZero()
-    local success = pcall(function()
-        local accwithChat = workspace:FindFirstChild("AccwithChat")
-        if accwithChat then
-            local danger = accwithChat:FindFirstChild("Danger")
-            if danger then
-                danger.Value = 0
-                return true
-            end
-        end
-        return false
-    end)
-    return success
+    local danger = findDanger()
+    if danger then
+        danger.Value = 0
+        return true
+    end
+    return false
 end
 
 local function startRemoveDanger()
-    removeDangerRunning = true
+    if dangerLoopEnabled then
+        mansionNotify("Remove Danger", "Already running!", 2)
+        return
+    end
+    
+    dangerLoopEnabled = true
     mansionNotify("Remove Danger", "Started", 2)
-    removeDangerThread = task.spawn(function()
-        while removeDangerRunning do
-            setDangerToZero()
-            task.wait(0.1)
+    
+    dangerThread = task.spawn(function()
+        while dangerLoopEnabled do
+            local danger = findDanger()
+            if danger then
+                danger.Value = 0
+            end
+            task.wait(0.05)
         end
     end)
 end
 
 local function stopRemoveDanger()
-    removeDangerRunning = false
-    if removeDangerThread then
-        task.cancel(removeDangerThread)
-        removeDangerThread = nil
+    if not dangerLoopEnabled then
+        mansionNotify("Remove Danger", "Not running!", 2)
+        return
+    end
+    
+    dangerLoopEnabled = false
+    if dangerThread then
+        task.cancel(dangerThread)
+        dangerThread = nil
     end
     mansionNotify("Remove Danger", "Stopped", 2)
 end
 
-MansionMainTab:CreateButton({
-    Name = "remove danger (toggle)",
-    Callback = function()
-        if removeDangerRunning then
-            stopRemoveDanger()
-        else
-            startRemoveDanger()
-        end
-    end
-})
-
-MansionMainTab:CreateButton({
-    Name = "set danger to 0 (once)",
-    Callback = function()
-        if setDangerToZero() then
-            mansionNotify("Danger", "Set to 0", 2)
-        else
-            mansionNotify("Error", "Danger object not found", 2)
-        end
-    end
-})
-
 local function startKidAlert()
+    if kidAlertEnabled then
+        mansionNotify("Kid Alert", "Already running!", 2)
+        return
+    end
+    
     kidAlertEnabled = true
     kidDetected = false
     mansionNotify("Kid Alert", "Tracking enabled", 2)
+    
     kidAlertThread = task.spawn(function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         local lastKidState = false
@@ -2919,6 +2925,7 @@ local function startKidAlert()
             if kidInWorkspace and not lastKidState then
                 kidDetected = true
                 for i = 1, 5 do
+                    if not kidAlertEnabled then break end
                     mansionNotify("KID ALERT", "Kid is in the mansion! (Warning " .. i .. "/5)", 2)
                     task.wait(1)
                 end
@@ -2937,6 +2944,11 @@ local function startKidAlert()
 end
 
 local function stopKidAlert()
+    if not kidAlertEnabled then
+        mansionNotify("Kid Alert", "Not running!", 2)
+        return
+    end
+    
     kidAlertEnabled = false
     if kidAlertThread then
         task.cancel(kidAlertThread)
@@ -2945,6 +2957,28 @@ local function stopKidAlert()
     kidDetected = false
     mansionNotify("Kid Alert", "Tracking disabled", 2)
 end
+
+MansionMainTab:CreateButton({
+    Name = "remove danger (toggle)",
+    Callback = function()
+        if dangerLoopEnabled then
+            stopRemoveDanger()
+        else
+            startRemoveDanger()
+        end
+    end
+})
+
+MansionMainTab:CreateButton({
+    Name = "set danger to 0 (once)",
+    Callback = function()
+        if setDangerToZero() then
+            mansionNotify("Danger", "Set to 0", 2)
+        else
+            mansionNotify("Error", "Danger object not found", 2)
+        end
+    end
+})
 
 MansionMainTab:CreateButton({
     Name = "kid alert (toggle)",
