@@ -1608,7 +1608,7 @@ FixTowerTab:CreateButton({
         repairAllWires()
     end
 })
--- ========== NIGHT 2 TAB (Panels) ==========
+
 -- ========== NIGHT 2 TAB ==========
 local panelFixRunning = false
 local panelFixThread = nil
@@ -1809,7 +1809,6 @@ NightTab:CreateButton({
         escapeSnatch()
     end
 })
--- ========== NIGHT 3 AMMO TAB ==========
 -- ========== NIGHT 3 AMMO TAB ==========
 local ammoCollecting = false
 local originalCFrame = nil
