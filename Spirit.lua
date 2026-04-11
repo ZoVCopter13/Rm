@@ -1,4 +1,24 @@
 -- ========== SPIRIT HELPER TAB (ОПТИМИЗИРОВАННЫЙ) ==========
+-- Скрипт для добавления функций в уже существующую вкладку SpiritHelperTab
+
+-- Проверяем, не загружен ли уже Spirit Helper
+if _G.SpiritHelperLoaded then
+    warn("Spirit Helper already loaded")
+    return
+end
+_G.SpiritHelperLoaded = true
+
+-- Используем существующий Rayfield и уведомления
+local function notify(title, content, duration)
+    Rayfield:Notify({
+        Title = title,
+        Content = content,
+        Duration = duration or 2.5,
+        Image = 4483362458
+    })
+end
+
+-- Переменные
 local spiritEnabled = false
 local spiritThread = nil
 local spiritBloodmoon = false
@@ -47,11 +67,6 @@ local function spiritTP(loc)
       return true
    end
    return false
-end
-
-local function getVal(path) 
-   local s, v = pcall(function() return workspace:FindFirstChild(path) end)
-   return s and v or nil
 end
 
 local function spiritGetHeat() 
@@ -113,9 +128,9 @@ local function spiritCheckAndAct()
    local now = tick()
    local hidden = spiritBedHidden()
    local mProgress, mDetails, cnt3 = spiritMonsterProgress()
-   
+
    if hidden ~= spiritData.bedHidden then spiritData.bedHidden = hidden end
-   
+
    for p, v in pairs(mDetails) do
       if spiritData.monsterProgress[p] ~= nil and v ~= spiritData.monsterProgress[p] then
          if v == 0 and spiritData.monsterProgress[p] > 0 then
@@ -124,7 +139,7 @@ local function spiritCheckAndAct()
       end
       spiritData.monsterProgress[p] = v
    end
-   
+
    if mProgress == 3 then
       local heat = spiritGetHeat()
       if heat and heat - (spiritData.lampHeatVal == -1 and heat or spiritData.lampHeatVal) >= 0.2 and now - spiritData.lampIncreaseTime >= 2 then
@@ -136,7 +151,7 @@ local function spiritCheckAndAct()
          return
       end
    end
-   
+
    local closetP = spiritGetCloset()
    if closetP and spiritData.closetProgress ~= nil then
       if closetP == 3 and spiritData.closetProgress ~= 3 then
@@ -154,9 +169,9 @@ local function spiritCheckAndAct()
       end
    end
    spiritData.closetProgress = closetP
-   
+
    if hidden then return end
-   
+
    local bearDist = spiritGetBearDist()
    if bearDist then
       if spiritData.bearDist ~= nil and bearDist == 0 and spiritData.bearDist > 0 then
@@ -175,7 +190,7 @@ local function spiritCheckAndAct()
       end
       spiritData.bearDist = bearDist
    end
-   
+
    local heat = spiritGetHeat()
    if heat then
       if heat ~= spiritData.lampHeat then spiritData.lampHeat = heat end
@@ -190,7 +205,7 @@ local function spiritCheckAndAct()
          return
       end
    end
-   
+
    local radioDist = spiritGetRadioDist()
    if radioDist then
       if spiritData.maxDist ~= nil and radioDist == 0 and spiritData.maxDist > 0 then
@@ -216,7 +231,7 @@ local function spiritCheckAndAct()
       end
       spiritData.maxDist = radioDist
    end
-   
+
    if mProgress == 3 then
       if spiritBloodmoon then
          if cnt3 == 3 then return end
@@ -272,6 +287,7 @@ local function toggleBloodmoon()
    notify("Bloodmoon Mode", spiritBloodmoon and "ENABLED" or "DISABLED", 3)
 end
 
+-- Добавляем кнопки в существующую вкладку SpiritHelperTab
 SpiritHelperTab:CreateButton({
    Name = "START Spirit Helper",
    Callback = startSpirit
@@ -299,3 +315,5 @@ SpiritHelperTab:CreateButton({
    Name = "BLOODMOON MODE",
    Callback = toggleBloodmoon
 })
+
+print("✅ Spirit Helper functions loaded into existing tab")
