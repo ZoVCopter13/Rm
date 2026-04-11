@@ -287,13 +287,18 @@ local ButtonInfo = Tab:CreateButton({
        notify("Info", "script ZOVCOPTER by NAGIEV", 5)
    end
 })
+
 -- ========== PLAYER TAB ==========
 local sprintButton
 local noclipButton
 
+-- Переменные для ноклипа (из Infinite Yield)
 local noclipEnabled = false
-local noclipConnections = {}
+local noclipConnection = nil
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
+-- Функции для обновления кнопок
 local function updateSprintButton()
     if sprintButton then
         sprintButton:Set(sprintLoopRunning and "Infinity sprint (ON)" or "Infinity sprint")
@@ -306,6 +311,7 @@ local function updateNoclipButton()
     end
 end
 
+-- Функции для спринта
 local function startSprint()
     sprintLoopRunning = true
     updateSprintButton()
@@ -333,70 +339,53 @@ local function stopSprint()
     notify("Infinity sprint", "off", 1)
 end
 
+-- НОКЛИП (упрощенная версия из Infinite Yield)
 local function startNoclip()
+    if noclipEnabled then return end
     noclipEnabled = true
     updateNoclipButton()
-    notify("Noclip", "on", 1)
     
-    task.spawn(function()
-        local player = game.Players.LocalPlayer
-        if not player then return end
+    noclipConnection = RunService.Heartbeat:Connect(function()
+        if not noclipEnabled then return end
         
-        local function setNoCollisions(character)
-            if not character then return end
+        local player = Players.LocalPlayer
+        local character = player.Character
+        if character then
             for _, part in pairs(character:GetDescendants()) do
                 if part:IsA("BasePart") then
                     part.CanCollide = false
-                    part.CanTouch = false
                 end
             end
         end
-        
-        if player.Character then
-            setNoCollisions(player.Character)
-        end
-        
-        local charAddedConn = player.CharacterAdded:Connect(function(character)
-            task.wait(0.5)
-            if noclipEnabled then
-                setNoCollisions(character)
-            end
-        end)
-        table.insert(noclipConnections, charAddedConn)
-        
-        local heartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
-            if not noclipEnabled then
-                for _, conn in ipairs(noclipConnections) do
-                    conn:Disconnect()
-                end
-                noclipConnections = {}
-                return
-            end
-            
-            if player and player.Character then
-                for _, part in pairs(player.Character:GetDescendants()) do
-                    if part:IsA("BasePart") and (part.CanCollide or part.CanTouch) then
-                        part.CanCollide = false
-                        part.CanTouch = false
-                    end
-                end
-            end
-        end)
-        table.insert(noclipConnections, heartbeatConn)
     end)
+    
+    notify("Noclip", "on", 1)
 end
 
 local function stopNoclip()
+    if not noclipEnabled then return end
     noclipEnabled = false
     updateNoclipButton()
-    notify("Noclip", "off", 1)
     
-    for _, conn in ipairs(noclipConnections) do
-        conn:Disconnect()
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
     end
-    noclipConnections = {}
+    
+    local player = Players.LocalPlayer
+    local character = player.Character
+    if character then
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+    
+    notify("Noclip", "off", 1)
 end
 
+-- Создаем кнопки
 sprintButton = PlayerTab:CreateButton({
     Name = "Infinity sprint",
     Callback = function()
@@ -419,6 +408,7 @@ noclipButton = PlayerTab:CreateButton({
     end
 })
 
+-- TpWalk
 local TpWalkSlider = PlayerTab:CreateSlider({
     Name = "TpWalk Speed",
     Range = {1, 20},
@@ -456,687 +446,363 @@ PlayerTab:CreateButton({
     end
 })
 
-
 -- ========== VISUALS TAB ==========
+-- Оптимизированный ESP без лагов
+
 local fullbrightEnabled = false
 local fullbrightConnections = {}
 
-local function highlightParts(model, color)
-    if not model then return end
+-- Хранилище для подсветок
+local activeHighlights = {}
+local activeConnections = {}
+
+local function createHighlight(part, color)
+    if not part or not part:IsA("BasePart") then return nil end
+    local highlight = Instance.new("Highlight")
+    highlight.Adornee = part
+    highlight.FillColor = color
+    highlight.FillTransparency = 0.5
+    highlight.OutlineColor = color
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Name = "OptimizedESP"
+    highlight.Parent = part
+    return highlight
+end
+
+local function createModelHighlight(model, color)
+    if not model then return nil end
+    local highlights = {}
     for _, part in pairs(model:GetDescendants()) do
         if part:IsA("BasePart") then
-            local highlight = Instance.new("Highlight")
-            highlight.Adornee = part
-            highlight.FillColor = color
-            highlight.FillTransparency = 0.5
-            highlight.OutlineColor = color
-            highlight.OutlineTransparency = 0
-            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            highlight.Name = "PH"..color.r..color.g..color.b
-            highlight.Parent = part
+            local h = createHighlight(part, color)
+            if h then table.insert(highlights, h) end
         end
+    end
+    return highlights
+end
+
+local function destroyHighlights(highlights)
+    if type(highlights) == "table" then
+        for _, h in ipairs(highlights) do
+            pcall(function() h:Destroy() end)
+        end
+    else
+        pcall(function() highlights:Destroy() end)
     end
 end
 
-local function removeHighlights(model)
-    if not model then return end
-    for _, part in pairs(model:GetDescendants()) do
-        if part:IsA("BasePart") then
-            for _, child in ipairs(part:GetChildren()) do
-                if child:IsA("Highlight") and child.Name:find("PH") then
-                    child:Destroy()
-                end
+local function clearAllHighlights()
+    for _, highlights in pairs(activeHighlights) do
+        destroyHighlights(highlights)
+    end
+    activeHighlights = {}
+end
+
+local function clearAllConnections()
+    for _, conn in ipairs(activeConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    activeConnections = {}
+end
+
+-- Monster ESP (Mutant, WeirdDad, Winterhorn, Intruder, DoorMonster)
+local monsterEnabled = false
+local monsterHighlights = {}
+
+local monsterNames = {"Mutant", "WeirdDad", "Winterhorn", "Intruder", "DoorMonster"}
+local monsterColors = {
+    Mutant = Color3.fromRGB(255, 48, 48),
+    WeirdDad = Color3.fromRGB(255, 128, 0),
+    Winterhorn = Color3.fromRGB(0, 255, 255),
+    Intruder = Color3.fromRGB(255, 50, 100),
+    DoorMonster = Color3.fromRGB(255, 200, 100)
+}
+
+local function addMonsterHighlight(monster)
+    if not monster or monsterHighlights[monster] then return end
+    local color = monsterColors[monster.Name] or Color3.fromRGB(255, 255, 255)
+    monsterHighlights[monster] = createModelHighlight(monster, color)
+    activeHighlights[monster.Name] = monsterHighlights[monster]
+end
+
+local function removeMonsterHighlight(monster)
+    if monsterHighlights[monster] then
+        destroyHighlights(monsterHighlights[monster])
+        monsterHighlights[monster] = nil
+    end
+end
+
+local function setupMonsterESP()
+    if monsterEnabled then
+        for _, name in ipairs(monsterNames) do
+            local monster = workspace:FindFirstChild(name)
+            if monster then addMonsterHighlight(monster) end
+        end
+        
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        
+        for _, name in ipairs({"WeirdDad", "Winterhorn", "Intruder"}) do
+            local monsterInStorage = ReplicatedStorage:FindFirstChild(name)
+            if monsterInStorage then
+                local movedConn = monsterInStorage.ChildAdded:Connect(function(child)
+                    if monsterEnabled and child.Name == name and child:IsA("Model") then
+                        task.wait(0.1)
+                        addMonsterHighlight(child)
+                    end
+                end)
+                table.insert(activeConnections, movedConn)
             end
         end
+        
+        local conn = workspace.DescendantAdded:Connect(function(descendant)
+            if monsterEnabled and descendant:IsA("Model") then
+                for _, name in ipairs(monsterNames) do
+                    if descendant.Name == name then
+                        task.wait(0.1)
+                        addMonsterHighlight(descendant)
+                        break
+                    end
+                end
+            end
+        end)
+        table.insert(activeConnections, conn)
+        
+        local removeConn = workspace.DescendantRemoving:Connect(function(descendant)
+            if monsterEnabled and descendant:IsA("Model") then
+                for _, name in ipairs(monsterNames) do
+                    if descendant.Name == name then
+                        removeMonsterHighlight(descendant)
+                        break
+                    end
+                end
+            end
+        end)
+        table.insert(activeConnections, removeConn)
+    else
+        for monster, highlights in pairs(monsterHighlights) do
+            destroyHighlights(highlights)
+        end
+        monsterHighlights = {}
     end
 end
 
--- Mutant ESP
-local mutantEspEnabled = false
-local mutantEspConnections = {}
-local mutantList = {}
-
-local ButtonMutantESP = VisualsTab:CreateButton({
-   Name = "Mutant ESP",
-   Callback = function()
-       mutantEspEnabled = not mutantEspEnabled
-       notify("Mutant ESP", mutantEspEnabled and "on" or "off")
-       if mutantEspEnabled then
-           task.spawn(function()
-               local function updateMutantESP()
-                   local mutant = workspace:FindFirstChild("Mutant")
-                   if mutant and not mutantList[mutant] then
-                       highlightParts(mutant, Color3.fromRGB(255, 48, 48))
-                       mutantList[mutant] = true
-                   end
-               end
-               local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
-                   if descendant.Name == "Mutant" and mutantEspEnabled then
-                       task.wait(0.1)
-                       if not mutantList[descendant] then
-                           highlightParts(descendant, Color3.fromRGB(255, 48, 48))
-                           mutantList[descendant] = true
-                       end
-                   end
-               end)
-               table.insert(mutantEspConnections, descendantConn)
-               local childRemovedConn = workspace.ChildRemoved:Connect(function(child)
-                   if child.Name == "Mutant" and mutantList[child] then
-                       mutantList[child] = nil
-                   end
-               end)
-               table.insert(mutantEspConnections, childRemovedConn)
-               updateMutantESP()
-           end)
-       else
-           for mutant, _ in pairs(mutantList) do
-               if mutant and mutant.Parent then
-                   removeHighlights(mutant)
-               end
-           end
-           mutantList = {}
-           for _, conn in ipairs(mutantEspConnections) do
-               conn:Disconnect()
-           end
-           mutantEspConnections = {}
-       end
-   end
+local ButtonMonsterESP = VisualsTab:CreateButton({
+    Name = "Monster ESP",
+    Callback = function()
+        monsterEnabled = not monsterEnabled
+        notify("Monster ESP", monsterEnabled and "ON" or "OFF", 2)
+        if monsterEnabled then
+            setupMonsterESP()
+        else
+            clearAllHighlights()
+            clearAllConnections()
+            setupMonsterESP()
+        end
+    end
 })
 
 -- Zombie ESP
-local zombieEspEnabled = false
-local zombieEspConnections = {}
-local zombieList = {}
-local zombieTypes = {
-    "FrozenZombie",
-    "FrozenBloodZombie", 
-    "Zombie",
-    "BloodZombie"
-}
+local zombieEnabled = false
+local zombieHighlights = {}
+
+local function addZombieHighlight(zombie)
+    if not zombie or zombieHighlights[zombie] then return end
+    zombieHighlights[zombie] = createModelHighlight(zombie, Color3.fromRGB(0, 255, 0))
+    activeHighlights[zombie.Name] = zombieHighlights[zombie]
+end
+
+local function removeZombieHighlight(zombie)
+    if zombieHighlights[zombie] then
+        destroyHighlights(zombieHighlights[zombie])
+        zombieHighlights[zombie] = nil
+    end
+end
+
+local function setupZombieESP()
+    if zombieEnabled then
+        for _, zombie in pairs(workspace:GetDescendants()) do
+            if zombie:IsA("Model") and (zombie.Name == "Zombie" or zombie.Name == "FrozenZombie" or zombie.Name == "FrozenBloodZombie" or zombie.Name == "BloodZombie") then
+                addZombieHighlight(zombie)
+            end
+        end
+        
+        local conn = workspace.DescendantAdded:Connect(function(descendant)
+            if zombieEnabled and descendant:IsA("Model") then
+                if descendant.Name == "Zombie" or descendant.Name == "FrozenZombie" or descendant.Name == "FrozenBloodZombie" or descendant.Name == "BloodZombie" then
+                    task.wait(0.1)
+                    addZombieHighlight(descendant)
+                end
+            end
+        end)
+        table.insert(activeConnections, conn)
+        
+        local removeConn = workspace.DescendantRemoving:Connect(function(descendant)
+            if zombieEnabled and descendant:IsA("Model") then
+                if descendant.Name == "Zombie" or descendant.Name == "FrozenZombie" or descendant.Name == "FrozenBloodZombie" or descendant.Name == "BloodZombie" then
+                    removeZombieHighlight(descendant)
+                end
+            end
+        end)
+        table.insert(activeConnections, removeConn)
+    else
+        for zombie, highlights in pairs(zombieHighlights) do
+            destroyHighlights(highlights)
+        end
+        zombieHighlights = {}
+    end
+end
 
 local ButtonZombieESP = VisualsTab:CreateButton({
-   Name = "Zombie ESP",
-   Callback = function()
-       zombieEspEnabled = not zombieEspEnabled
-       notify("Zombie ESP", zombieEspEnabled and "on" or "off")
-       if zombieEspEnabled then
-           task.spawn(function()
-               local ReplicatedStorage = game:GetService("ReplicatedStorage")
-               local Assets = ReplicatedStorage:FindFirstChild("Assets")
-               if not Assets then
-                   notify("Error", "Assets folder not found", 3)
-                   return
-               end
-               local function addESPToZombie(zombie)
-                   if not zombie or not zombieEspEnabled or zombieList[zombie] then 
-                       return 
-                   end
-                   highlightParts(zombie, Color3.fromRGB(0, 255, 0))
-                   zombieList[zombie] = true
-               end
-               local function updateZombieESP()
-                   if not Assets then return end
-                   for _, zombieName in ipairs(zombieTypes) do
-                       local zombiesFolder = workspace:FindFirstChild("Zombies")
-                       if zombiesFolder then
-                           local zombieInFolder = zombiesFolder:FindFirstChild(zombieName)
-                           if zombieInFolder and zombieInFolder:IsA("Model") then
-                               addESPToZombie(zombieInFolder)
-                           end
-                       end
-                       for _, obj in pairs(workspace:GetDescendants()) do
-                           if obj.Name == zombieName and obj:IsA("Model") then
-                               addESPToZombie(obj)
-                           end
-                       end
-                   end
-               end
-               local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
-                   if not zombieEspEnabled then return end
-                   for _, zombieName in ipairs(zombieTypes) do
-                       if descendant.Name == zombieName and descendant:IsA("Model") then
-                           task.wait(0.1)
-                           addESPToZombie(descendant)
-                           break
-                       end
-                   end
-               end)
-               table.insert(zombieEspConnections, descendantConn)
-               local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
-                   if zombieList[descendant] then
-                       zombieList[descendant] = nil
-                   end
-               end)
-               table.insert(zombieEspConnections, childRemovedConn)
-               updateZombieESP()
-               
-               local function periodicCheck()
-                   while zombieEspEnabled do
-                       updateZombieESP()
-                       task.wait(5)
-                   end
-               end
-               task.spawn(periodicCheck)
-           end)
-       else
-           for zombie, _ in pairs(zombieList) do
-               if zombie and zombie.Parent then
-                   removeHighlights(zombie)
-               end
-           end
-           zombieList = {}
-           for _, conn in ipairs(zombieEspConnections) do
-               conn:Disconnect()
-           end
-           zombieEspConnections = {}
-       end
-   end
+    Name = "Zombie ESP",
+    Callback = function()
+        zombieEnabled = not zombieEnabled
+        notify("Zombie ESP", zombieEnabled and "ON" or "OFF", 2)
+        if zombieEnabled then
+            setupZombieESP()
+        else
+            clearAllHighlights()
+            clearAllConnections()
+            setupZombieESP()
+        end
+    end
 })
 
 -- Stalker ESP
-local stalkerEspEnabled = false
-local stalkerEspConnections = {}
-local stalkerList = {}
+local stalkerEnabled = false
+local stalkerHighlights = nil
+
+local function setupStalkerESP()
+    if stalkerEnabled then
+        if stalkerHighlights then destroyHighlights(stalkerHighlights) end
+        local stalker = workspace:FindFirstChild("Stalker")
+        if stalker then
+            stalkerHighlights = createModelHighlight(stalker, Color3.fromRGB(255, 0, 255))
+            activeHighlights["Stalker"] = stalkerHighlights
+        end
+        
+        local conn = workspace.DescendantAdded:Connect(function(descendant)
+            if stalkerEnabled and descendant.Name == "Stalker" and descendant:IsA("Model") then
+                task.wait(0.1)
+                if stalkerHighlights then destroyHighlights(stalkerHighlights) end
+                stalkerHighlights = createModelHighlight(descendant, Color3.fromRGB(255, 0, 255))
+                activeHighlights["Stalker"] = stalkerHighlights
+            end
+        end)
+        table.insert(activeConnections, conn)
+    else
+        if stalkerHighlights then destroyHighlights(stalkerHighlights) end
+        stalkerHighlights = nil
+        activeHighlights["Stalker"] = nil
+    end
+end
 
 local ButtonStalkerESP = VisualsTab:CreateButton({
-   Name = "stalker ESP",
-   Callback = function()
-       stalkerEspEnabled = not stalkerEspEnabled
-       notify("Stalker ESP", stalkerEspEnabled and "on" or "off")
-       if stalkerEspEnabled then
-           task.spawn(function()
-               local ReplicatedStorage = game:GetService("ReplicatedStorage")
-               local function addESPToStalker(stalker)
-                   if not stalker or not stalkerEspEnabled or stalkerList[stalker] then 
-                       return 
-                   end
-                   highlightParts(stalker, Color3.fromRGB(255, 0, 255))
-                   stalkerList[stalker] = true
-               end
-               local function checkForStalker()
-                   local stalkerInWorkspace = workspace:FindFirstChild("Stalker")
-                   if stalkerInWorkspace and not stalkerList[stalkerInWorkspace] then
-                       addESPToStalker(stalkerInWorkspace)
-                   end
-                   for _, obj in pairs(workspace:GetDescendants()) do
-                       if obj.Name == "Stalker" and obj:IsA("Model") and not stalkerList[obj] then
-                           addESPToStalker(obj)
-                       end
-                   end
-               end
-               local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
-                   if not stalkerEspEnabled then return end
-                   if descendant.Name == "Stalker" and descendant:IsA("Model") then
-                       task.wait(0.1)
-                       addESPToStalker(descendant)
-                   end
-               end)
-               table.insert(stalkerEspConnections, descendantConn)
-               local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
-                   if stalkerList[descendant] then
-                       stalkerList[descendant] = nil
-                   end
-               end)
-               table.insert(stalkerEspConnections, childRemovedConn)
-               checkForStalker()
-               local function periodicCheck()
-                   while stalkerEspEnabled do
-                       checkForStalker()
-                       task.wait(5)
-                   end
-               end
-               task.spawn(periodicCheck)
-           end)
-       else
-           for stalker, _ in pairs(stalkerList) do
-               if stalker and stalker.Parent then
-                   removeHighlights(stalker)
-               end
-           end
-           stalkerList = {}
-           for _, conn in ipairs(stalkerEspConnections) do
-               conn:Disconnect()
-           end
-           stalkerEspConnections = {}
-       end
-   end
+    Name = "Stalker ESP",
+    Callback = function()
+        stalkerEnabled = not stalkerEnabled
+        notify("Stalker ESP", stalkerEnabled and "ON" or "OFF", 2)
+        if stalkerEnabled then
+            setupStalkerESP()
+        else
+            clearAllHighlights()
+            clearAllConnections()
+            setupStalkerESP()
+        end
+    end
 })
 
 -- Spider ESP
-local spiderEspEnabled = false
-local spiderEspConnections = {}
-local spiderList = {}
+local spiderEnabled = false
+local spiderHighlights = {}
+
+local function addSpiderHighlight(spider)
+    if not spider or spiderHighlights[spider] then return end
+    spiderHighlights[spider] = createModelHighlight(spider, Color3.fromRGB(255, 165, 0))
+    activeHighlights[spider.Name] = spiderHighlights[spider]
+end
+
+local function setupSpiderESP()
+    if spiderEnabled then
+        local possibleNames = {"WorkerHead", "Spider", "Arachnid"}
+        for _, name in ipairs(possibleNames) do
+            local spider = workspace:FindFirstChild(name)
+            if spider then addSpiderHighlight(spider) end
+        end
+        
+        local conn = workspace.DescendantAdded:Connect(function(descendant)
+            if spiderEnabled and descendant:IsA("Model") then
+                if descendant.Name == "WorkerHead" or descendant.Name == "Spider" or descendant.Name == "Arachnid" then
+                    task.wait(0.1)
+                    addSpiderHighlight(descendant)
+                end
+            end
+        end)
+        table.insert(activeConnections, conn)
+    else
+        for spider, highlights in pairs(spiderHighlights) do
+            destroyHighlights(highlights)
+        end
+        spiderHighlights = {}
+    end
+end
 
 local ButtonSpiderESP = VisualsTab:CreateButton({
-   Name = "spider ESP",
-   Callback = function()
-       spiderEspEnabled = not spiderEspEnabled
-       notify("Spider ESP", spiderEspEnabled and "on" or "off")
-       if spiderEspEnabled then
-           task.spawn(function()
-               local ReplicatedStorage = game:GetService("ReplicatedStorage")
-               local function addESPToSpider(spider)
-                   if not spider or not spiderEspEnabled or spiderList[spider] then 
-                       return 
-                   end
-                   highlightParts(spider, Color3.fromRGB(255, 165, 0))
-                   spiderList[spider] = true
-               end
-               local function checkForSpider()
-                   local spiderInStorage = ReplicatedStorage:FindFirstChild("WorkerHead")
-                   if spiderInStorage and not spiderList[spiderInStorage] then
-                       local function onSpiderMoved(child)
-                           if child.Name == "WorkerHead" and child:IsA("Model") then
-                               addESPToSpider(child)
-                           end
-                       end
-                       local movedConn = spiderInStorage.ChildAdded:Connect(onSpiderMoved)
-                       table.insert(spiderEspConnections, movedConn)
-                   end
-                   local possibleNames = {"WorkerHead", "Spider", "Arachnid"}
-                   for _, name in ipairs(possibleNames) do
-                       local spiderInWorkspace = workspace:FindFirstChild(name)
-                       if spiderInWorkspace and spiderInWorkspace:IsA("Model") and not spiderList[spiderInWorkspace] then
-                           addESPToSpider(spiderInWorkspace)
-                       end
-                   end
-                   for _, obj in pairs(workspace:GetDescendants()) do
-                       for _, name in ipairs(possibleNames) do
-                           if obj.Name == name and obj:IsA("Model") and not spiderList[obj] then
-                               addESPToSpider(obj)
-                           end
-                       end
-                   end
-               end
-               local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
-                   if not spiderEspEnabled then return end
-                   local possibleNames = {"WorkerHead", "Spider", "Arachnid"}
-                   for _, name in ipairs(possibleNames) do
-                       if descendant.Name == name and descendant:IsA("Model") then
-                           task.wait(0.1)
-                           addESPToSpider(descendant)
-                           break
-                       end
-                   end
-               end)
-               table.insert(spiderEspConnections, descendantConn)
-               local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
-                   if spiderList[descendant] then
-                       spiderList[descendant] = nil
-                   end
-               end)
-               table.insert(spiderEspConnections, childRemovedConn)
-               checkForSpider()
-               local function periodicCheck()
-                   while spiderEspEnabled do
-                       checkForSpider()
-                       task.wait(5)
-                   end
-               end
-               task.spawn(periodicCheck)
-           end)
-       else
-           for spider, _ in pairs(spiderList) do
-               if spider and spider.Parent then
-                   removeHighlights(spider)
-               end
-           end
-           spiderList = {}
-           for _, conn in ipairs(spiderEspConnections) do
-               conn:Disconnect()
-           end
-           spiderEspConnections = {}
-       end
-   end
+    Name = "Spider ESP",
+    Callback = function()
+        spiderEnabled = not spiderEnabled
+        notify("Spider ESP", spiderEnabled and "ON" or "OFF", 2)
+        if spiderEnabled then
+            setupSpiderESP()
+        else
+            clearAllHighlights()
+            clearAllConnections()
+            setupSpiderESP()
+        end
+    end
 })
 
 -- Bunker Rat ESP
-local bunkerRatEspEnabled = false
-local bunkerRatEspConnections = {}
-local bunkerRatList = {}
+local ratEnabled = false
+local ratHighlights = {}
 
-local function highlightBunkerRatParts(model, color, name)
-    if not model then return end
-    for _, part in pairs(model:GetDescendants()) do
-        if part:IsA("BasePart") then
-            local highlight = Instance.new("Highlight")
-            highlight.Adornee = part
-            highlight.FillColor = color
-            highlight.FillTransparency = 0.4
-            highlight.OutlineColor = color
-            highlight.OutlineTransparency = 0
-            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            highlight.Name = name or "BunkerRatESP"
-            highlight.Parent = part
-        end
-    end
+local function addRatHighlight(rat)
+    if not rat or ratHighlights[rat] then return end
+    ratHighlights[rat] = createModelHighlight(rat, Color3.fromRGB(139, 69, 19))
+    activeHighlights["BunkerRat"] = ratHighlights[rat]
 end
 
-local function removeBunkerRatHighlights(model, name)
-    if not model then return end
-    for _, part in pairs(model:GetDescendants()) do
-        if part:IsA("BasePart") then
-            for _, child in ipairs(part:GetChildren()) do
-                if child:IsA("Highlight") and child.Name == (name or "BunkerRatESP") then
-                    child:Destroy()
-                end
+local function setupRatESP()
+    if ratEnabled then
+        local rat = workspace:FindFirstChild("BunkerRat")
+        if rat then addRatHighlight(rat) end
+        
+        local conn = workspace.DescendantAdded:Connect(function(descendant)
+            if ratEnabled and descendant.Name == "BunkerRat" and descendant:IsA("Model") then
+                task.wait(0.1)
+                addRatHighlight(descendant)
             end
+        end)
+        table.insert(activeConnections, conn)
+    else
+        for rat, highlights in pairs(ratHighlights) do
+            destroyHighlights(highlights)
         end
+        ratHighlights = {}
     end
 end
 
-local ButtonBunkerRatESP = VisualsTab:CreateButton({
+local ButtonRatESP = VisualsTab:CreateButton({
     Name = "Bunker Rat ESP",
     Callback = function()
-        bunkerRatEspEnabled = not bunkerRatEspEnabled
-        notify("Bunker Rat ESP", bunkerRatEspEnabled and "on" or "off", 2)
-        if bunkerRatEspEnabled then
-            task.spawn(function()
-                local function addESPToRat(rat)
-                    if not rat or not bunkerRatEspEnabled or bunkerRatList[rat] then return end
-                    highlightBunkerRatParts(rat, Color3.fromRGB(139, 69, 19), "BunkerRatESP")
-                    bunkerRatList[rat] = true
-                end
-                local function findRat()
-                    local rat = workspace:FindFirstChild("BunkerRat")
-                    if rat and not bunkerRatList[rat] then
-                        addESPToRat(rat)
-                    end
-                    for _, obj in pairs(workspace:GetDescendants()) do
-                        if obj.Name == "BunkerRat" and obj:IsA("Model") and not bunkerRatList[obj] then
-                            addESPToRat(obj)
-                        end
-                    end
-                end
-                local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
-                    if not bunkerRatEspEnabled then return end
-                    if descendant.Name == "BunkerRat" and descendant:IsA("Model") then
-                        task.wait(0.1)
-                        addESPToRat(descendant)
-                    end
-                end)
-                table.insert(bunkerRatEspConnections, descendantConn)
-                local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
-                    if bunkerRatList[descendant] then
-                        bunkerRatList[descendant] = nil
-                    end
-                end)
-                table.insert(bunkerRatEspConnections, childRemovedConn)
-                findRat()
-                local function periodicCheck()
-                    while bunkerRatEspEnabled do
-                        findRat()
-                        task.wait(5)
-                    end
-                end
-                task.spawn(periodicCheck)
-            end)
+        ratEnabled = not ratEnabled
+        notify("Bunker Rat ESP", ratEnabled and "ON" or "OFF", 2)
+        if ratEnabled then
+            setupRatESP()
         else
-            for rat, _ in pairs(bunkerRatList) do
-                if rat and rat.Parent then
-                    removeBunkerRatHighlights(rat, "BunkerRatESP")
-                end
-            end
-            bunkerRatList = {}
-            for _, conn in ipairs(bunkerRatEspConnections) do
-                conn:Disconnect()
-            end
-            bunkerRatEspConnections = {}
-        end
-    end
-})
-
--- WeirdDad ESP
-local weirdDadEspEnabled = false
-local weirdDadEspConnections = {}
-local weirdDadList = {}
-
-local ButtonWeirdDadESP = VisualsTab:CreateButton({
-    Name = "WeirdDad ESP",
-    Callback = function()
-        weirdDadEspEnabled = not weirdDadEspEnabled
-        notify("WeirdDad ESP", weirdDadEspEnabled and "on" or "off", 2)
-        if weirdDadEspEnabled then
-            task.spawn(function()
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                
-                local function addESPToWeirdDad(weirdDad)
-                    if not weirdDad or not weirdDadEspEnabled or weirdDadList[weirdDad] then return end
-                    highlightParts(weirdDad, Color3.fromRGB(255, 128, 0))
-                    weirdDadList[weirdDad] = true
-                end
-                
-                local function checkForWeirdDad()
-                    local weirdDadInWorkspace = workspace:FindFirstChild("WeirdDad")
-                    if weirdDadInWorkspace and not weirdDadList[weirdDadInWorkspace] then
-                        addESPToWeirdDad(weirdDadInWorkspace)
-                    end
-                    for _, obj in pairs(workspace:GetDescendants()) do
-                        if obj.Name == "WeirdDad" and obj:IsA("Model") and not weirdDadList[obj] then
-                            addESPToWeirdDad(obj)
-                        end
-                    end
-                end
-                
-                local weirdDadInStorage = ReplicatedStorage:FindFirstChild("WeirdDad")
-                if weirdDadInStorage then
-                    local function onWeirdDadMoved(child)
-                        if child.Name == "WeirdDad" and child:IsA("Model") then
-                            task.wait(0.1)
-                            addESPToWeirdDad(child)
-                        end
-                    end
-                    local movedConn = weirdDadInStorage.ChildAdded:Connect(onWeirdDadMoved)
-                    table.insert(weirdDadEspConnections, movedConn)
-                end
-                
-                local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
-                    if not weirdDadEspEnabled then return end
-                    if descendant.Name == "WeirdDad" and descendant:IsA("Model") then
-                        task.wait(0.1)
-                        addESPToWeirdDad(descendant)
-                    end
-                end)
-                table.insert(weirdDadEspConnections, descendantConn)
-                
-                local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
-                    if weirdDadList[descendant] then
-                        weirdDadList[descendant] = nil
-                    end
-                end)
-                table.insert(weirdDadEspConnections, childRemovedConn)
-                
-                checkForWeirdDad()
-                
-                local function periodicCheck()
-                    while weirdDadEspEnabled do
-                        checkForWeirdDad()
-                        task.wait(5)
-                    end
-                end
-                task.spawn(periodicCheck)
-            end)
-        else
-            for weirdDad, _ in pairs(weirdDadList) do
-                if weirdDad and weirdDad.Parent then
-                    removeHighlights(weirdDad)
-                end
-            end
-            weirdDadList = {}
-            for _, conn in ipairs(weirdDadEspConnections) do
-                conn:Disconnect()
-            end
-            weirdDadEspConnections = {}
-        end
-    end
-})
-
--- Winterhorn ESP
-local winterhornEspEnabled = false
-local winterhornEspConnections = {}
-local winterhornList = {}
-
-local ButtonWinterhornESP = VisualsTab:CreateButton({
-    Name = "Winterhorn ESP",
-    Callback = function()
-        winterhornEspEnabled = not winterhornEspEnabled
-        notify("Winterhorn ESP", winterhornEspEnabled and "on" or "off", 2)
-        if winterhornEspEnabled then
-            task.spawn(function()
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                
-                local function addESPToWinterhorn(winterhorn)
-                    if not winterhorn or not winterhornEspEnabled or winterhornList[winterhorn] then return end
-                    highlightParts(winterhorn, Color3.fromRGB(0, 255, 255))
-                    winterhornList[winterhorn] = true
-                end
-                
-                local function checkForWinterhorn()
-                    local winterhornInWorkspace = workspace:FindFirstChild("Winterhorn")
-                    if winterhornInWorkspace and not winterhornList[winterhornInWorkspace] then
-                        addESPToWinterhorn(winterhornInWorkspace)
-                    end
-                    for _, obj in pairs(workspace:GetDescendants()) do
-                        if obj.Name == "Winterhorn" and obj:IsA("Model") and not winterhornList[obj] then
-                            addESPToWinterhorn(obj)
-                        end
-                    end
-                end
-                
-                local winterhornInStorage = ReplicatedStorage:FindFirstChild("Winterhorn")
-                if winterhornInStorage then
-                    local function onWinterhornMoved(child)
-                        if child.Name == "Winterhorn" and child:IsA("Model") then
-                            task.wait(0.1)
-                            addESPToWinterhorn(child)
-                        end
-                    end
-                    local movedConn = winterhornInStorage.ChildAdded:Connect(onWinterhornMoved)
-                    table.insert(winterhornEspConnections, movedConn)
-                end
-                
-                local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
-                    if not winterhornEspEnabled then return end
-                    if descendant.Name == "Winterhorn" and descendant:IsA("Model") then
-                        task.wait(0.1)
-                        addESPToWinterhorn(descendant)
-                    end
-                end)
-                table.insert(winterhornEspConnections, descendantConn)
-                
-                local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
-                    if winterhornList[descendant] then
-                        winterhornList[descendant] = nil
-                    end
-                end)
-                table.insert(winterhornEspConnections, childRemovedConn)
-                
-                checkForWinterhorn()
-                
-                local function periodicCheck()
-                    while winterhornEspEnabled do
-                        checkForWinterhorn()
-                        task.wait(5)
-                    end
-                end
-                task.spawn(periodicCheck)
-            end)
-        else
-            for winterhorn, _ in pairs(winterhornList) do
-                if winterhorn and winterhorn.Parent then
-                    removeHighlights(winterhorn)
-                end
-            end
-            winterhornList = {}
-            for _, conn in ipairs(winterhornEspConnections) do
-                conn:Disconnect()
-            end
-            winterhornEspConnections = {}
-        end
-    end
-})
-
--- Intruder ESP
-local intruderEspEnabled = false
-local intruderEspConnections = {}
-local intruderList = {}
-
-local ButtonIntruderESP = VisualsTab:CreateButton({
-    Name = "Intruder ESP",
-    Callback = function()
-        intruderEspEnabled = not intruderEspEnabled
-        notify("Intruder ESP", intruderEspEnabled and "on" or "off", 2)
-        if intruderEspEnabled then
-            task.spawn(function()
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                
-                local function addESPToIntruder(intruder)
-                    if not intruder or not intruderEspEnabled or intruderList[intruder] then return end
-                    highlightParts(intruder, Color3.fromRGB(255, 50, 100))
-                    intruderList[intruder] = true
-                end
-                
-                local function checkForIntruder()
-                    local intruderInWorkspace = workspace:FindFirstChild("Intruder")
-                    if intruderInWorkspace and not intruderList[intruderInWorkspace] then
-                        addESPToIntruder(intruderInWorkspace)
-                    end
-                    for _, obj in pairs(workspace:GetDescendants()) do
-                        if obj.Name == "Intruder" and obj:IsA("Model") and not intruderList[obj] then
-                            addESPToIntruder(obj)
-                        end
-                    end
-                end
-                
-                local intruderInStorage = ReplicatedStorage:FindFirstChild("Intruder")
-                if intruderInStorage then
-                    local function onIntruderMoved(child)
-                        if child.Name == "Intruder" and child:IsA("Model") then
-                            task.wait(0.1)
-                            addESPToIntruder(child)
-                        end
-                    end
-                    local movedConn = intruderInStorage.ChildAdded:Connect(onIntruderMoved)
-                    table.insert(intruderEspConnections, movedConn)
-                end
-                
-                local descendantConn = workspace.DescendantAdded:Connect(function(descendant)
-                    if not intruderEspEnabled then return end
-                    if descendant.Name == "Intruder" and descendant:IsA("Model") then
-                        task.wait(0.1)
-                        addESPToIntruder(descendant)
-                    end
-                end)
-                table.insert(intruderEspConnections, descendantConn)
-                
-                local childRemovedConn = workspace.DescendantRemoving:Connect(function(descendant)
-                    if intruderList[descendant] then
-                        intruderList[descendant] = nil
-                    end
-                end)
-                table.insert(intruderEspConnections, childRemovedConn)
-                
-                checkForIntruder()
-                
-                local function periodicCheck()
-                    while intruderEspEnabled do
-                        checkForIntruder()
-                        task.wait(5)
-                    end
-                end
-                task.spawn(periodicCheck)
-            end)
-        else
-            for intruder, _ in pairs(intruderList) do
-                if intruder and intruder.Parent then
-                    removeHighlights(intruder)
-                end
-            end
-            intruderList = {}
-            for _, conn in ipairs(intruderEspConnections) do
-                conn:Disconnect()
-            end
-            intruderEspConnections = {}
+            clearAllHighlights()
+            clearAllConnections()
+            setupRatESP()
         end
     end
 })
@@ -1220,6 +886,29 @@ local ButtonFullbright = VisualsTab:CreateButton({
            fullbrightConnections = {}
        end
    end
+})
+
+-- DISABLE ALL ESP
+VisualsTab:CreateButton({
+    Name = "DISABLE ALL ESP",
+    Callback = function()
+        monsterEnabled = false
+        zombieEnabled = false
+        stalkerEnabled = false
+        spiderEnabled = false
+        ratEnabled = false
+        
+        clearAllHighlights()
+        clearAllConnections()
+        
+        monsterHighlights = {}
+        stalkerHighlights = nil
+        zombieHighlights = {}
+        spiderHighlights = {}
+        ratHighlights = {}
+        
+        notify("ESP", "All ESP disabled", 2)
+    end
 })
 
 
