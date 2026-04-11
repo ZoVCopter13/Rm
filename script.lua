@@ -1609,8 +1609,12 @@ FixTowerTab:CreateButton({
     end
 })
 -- ========== NIGHT 2 TAB (Panels) ==========
+-- ========== NIGHT 2 TAB ==========
 local panelFixRunning = false
 local panelFixThread = nil
+
+local RS = game:GetService("ReplicatedStorage")
+local Remotes = RS.Remotes
 
 local function teleportToPanel(panelNumber)
     local player = game.Players.LocalPlayer
@@ -1682,6 +1686,43 @@ local function stopPanelFix()
     notify("Auto Fix Panels", "Stopped monitoring", 2)
 end
 
+local function revive()
+    local success = pcall(function()
+        if Remotes and Remotes.LoadCharacter then
+            Remotes.LoadCharacter:FireServer()
+            notify("Revive", "Revive requested!", 2)
+        else
+            notify("Error", "LoadCharacter remote not found", 2)
+        end
+    end)
+    
+    if not success then
+        notify("Error", "Failed to revive", 2)
+    end
+end
+
+local function disableStalkerDamage()
+    local success = pcall(function()
+        if Remotes and Remotes.LookAt then
+            Remotes.LookAt:Destroy()
+            notify("Stalker", "Stalker view damage disabled", 2)
+        else
+            notify("Error", "LookAt remote not found", 2)
+        end
+    end)
+end
+
+local function escapeSnatch()
+    local success = pcall(function()
+        if Remotes and Remotes.EscapeSnatch then
+            Remotes.EscapeSnatch:FireServer()
+            notify("Escape", "Escaped from snatch!", 2)
+        else
+            notify("Error", "EscapeSnatch remote not found", 2)
+        end
+    end)
+end
+
 local PanelFixButton = NightTab:CreateButton({
     Name = "auto fix panels",
     Callback = function()
@@ -1740,6 +1781,32 @@ local CheckStatusButton = NightTab:CreateButton({
         else
             notify("Panel Status", "All panels are working", 2)
         end
+    end
+})
+
+NightTab:CreateButton({
+    Name = "────────── Remotes ──────────",
+    Callback = function() end
+})
+
+NightTab:CreateButton({
+    Name = "Revive",
+    Callback = function()
+        revive()
+    end
+})
+
+NightTab:CreateButton({
+    Name = "Disable Stalker Damage",
+    Callback = function()
+        disableStalkerDamage()
+    end
+})
+
+NightTab:CreateButton({
+    Name = "Escape Snatch",
+    Callback = function()
+        escapeSnatch()
     end
 })
 -- ========== NIGHT 3 AMMO TAB ==========
