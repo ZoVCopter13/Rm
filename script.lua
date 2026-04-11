@@ -1305,6 +1305,154 @@ local panelFixThread = nil
 local RS = game:GetService("ReplicatedStorage")
 local Remotes = RS.Remotes
 
+local batteryWaiting = false
+local batteryThread = nil
+local batteryOriginalCFrame = nil
+
+local function teleportTo(cf)
+    local player = game.Players.LocalPlayer
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        player.Character.HumanoidRootPart.CFrame = cf
+        return true
+    end
+    return false
+end
+
+local function clickDetector(detector)
+    if detector then
+        pcall(function()
+            fireclickdetector(detector)
+        end)
+        return true
+    end
+    return false
+end
+
+local function hasPowerCellInInventory()
+    local player = game.Players.LocalPlayer
+    if not player then return false end
+    
+    local character = player.Character
+    if character then
+        local powerCell = character:FindFirstChild("PowerCell")
+        if powerCell then
+            return true
+        end
+    end
+    
+    local backpack = player:FindFirstChild("Backpack")
+    if backpack then
+        local powerCell = backpack:FindFirstChild("PowerCell")
+        if powerCell then
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function startRefillBattery()
+    if batteryWaiting then
+        notify("Auto Battery", "Already running!", 2)
+        return
+    end
+    
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character then
+        notify("Error", "Character not found", 2)
+        return
+    end
+    
+    batteryWaiting = true
+    batteryOriginalCFrame = player.Character.HumanoidRootPart.CFrame
+    
+    local pos1 = CFrame.new(-317.922394, 82.3999481, 98.2941666) * CFrame.fromMatrix(Vector3.new(), 
+        Vector3.new(0.046649877, 6.02481407e-08, -0.998911321),
+        Vector3.new(-4.86141349e-10, 1, 6.02911072e-08),
+        Vector3.new(0.998911321, -2.3269604e-09, 0.046649877)
+    )
+    
+    local pos2 = CFrame.new(-271.965637, 82.3999481, 112.363098) * CFrame.fromMatrix(Vector3.new(), 
+        Vector3.new(-0.999907017, -2.46268765e-08, 0.0136381472),
+        Vector3.new(-2.4771813e-08, 1, -1.04582671e-08),
+        Vector3.new(-0.0136381472, -1.07951363e-08, -0.999907017)
+    )
+    
+    if not teleportTo(pos1) then
+        notify("Error", "Failed to teleport", 2)
+        batteryWaiting = false
+        return
+    end
+    
+    task.wait(0.3)
+    
+    local powerCell = workspace:FindFirstChild("PowerCell")
+    if powerCell then
+        local detector = powerCell:FindFirstChild("ClickDetector")
+        if detector then
+            clickDetector(detector)
+        end
+    end
+    
+    notify("Auto Battery", "Waiting for battery...", 2)
+    
+    batteryThread = task.spawn(function()
+        local batteryTaken = false
+        
+        while batteryWaiting do
+            local hasBattery = hasPowerCellInInventory()
+            
+            if hasBattery and not batteryTaken then
+                batteryTaken = true
+                notify("Auto Battery", "Battery in inventory! Placing...", 2)
+                
+                if teleportTo(pos2) then
+                    task.wait(0.3)
+                    
+                    local powerCellNew = workspace:FindFirstChild("PowerCell")
+                    if powerCellNew then
+                        local detectorNew = powerCellNew:FindFirstChild("ClickDetector")
+                        if detectorNew then
+                            clickDetector(detectorNew)
+                        end
+                    end
+                end
+            end
+            
+            if batteryTaken and not hasBattery then
+                break
+            end
+            
+            task.wait(0.2)
+        end
+        
+        teleportTo(batteryOriginalCFrame)
+        notify("Auto Battery", "Battery refilled! Returned.", 2)
+        
+        batteryWaiting = false
+        batteryThread = nil
+    end)
+end
+
+local function stopRefillBattery()
+    if not batteryWaiting then
+        notify("Auto Battery", "Not running!", 2)
+        return
+    end
+    
+    batteryWaiting = false
+    if batteryThread then
+        task.cancel(batteryThread)
+        batteryThread = nil
+    end
+    
+    if batteryOriginalCFrame then
+        teleportTo(batteryOriginalCFrame)
+    end
+    
+    notify("Auto Battery", "Stopped", 2)
+end
+
 local function teleportToPanel(panelNumber)
     local player = game.Players.LocalPlayer
     if not (player and player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
@@ -1412,6 +1560,7 @@ local function escapeSnatch()
     end)
 end
 
+-- Кнопки Night 2 Tab
 local PanelFixButton = NightTab:CreateButton({
     Name = "auto fix panels",
     Callback = function()
@@ -1496,6 +1645,22 @@ NightTab:CreateButton({
     Name = "Escape Snatch",
     Callback = function()
         escapeSnatch()
+    end
+})
+
+NightTab:CreateButton({
+    Name = "────────── Battery ──────────",
+    Callback = function() end
+})
+
+NightTab:CreateButton({
+    Name = "Refill Battery",
+    Callback = function()
+        if batteryWaiting then
+            stopRefillBattery()
+        else
+            startRefillBattery()
+        end
     end
 })
 -- ========== NIGHT 3 AMMO TAB ==========
@@ -1857,733 +2022,19 @@ Night3Tab:CreateButton({
 })
 
 -- ========== SPIRIT HELPER TAB ==========
-local spiritHelperRunning = false
-local spiritHelperThread = nil
-local lastSpiritLampTime = 0
-local lastSpiritAlarmTime = 0
-local lastSpiritBearTime = 0
-local spiritBedHidden = false
-local lastSpiritLampHeat = -1
-local lastSpiritMaxDistance = nil
-local lastSpiritBearDistance = nil
-local lastSpiritDistanceAt8 = false
-local lastSpiritBearCheckTime = 0
-local lastSpiritClosetProgress = nil
-local spiritBloodmoonMode = false
-local lastSpiritMonsterProgress = {Door = 0, Window = 0, Vent = 0}
-local lastSpiritLampHeatValue = -1
-local lastSpiritLampIncreaseTime = 0
-local spiritMonsterCooldown = 0
-local spiritLampESPEnabled = false
-local spiritLampESPThread = nil
-local spiritLampBillboard = nil
-
-local spiritPositions = {
-   alarm = {
-      pos = Vector3.new(-11.0053978, 5.00000334, 17.0491295),
-      matrix = {
-         Vector3.new(-0.00265719951, 0, 0.999996483),
-         Vector3.new(0, 1, 0),
-         Vector3.new(-0.999996483, 0, -0.00265719951)
-      },
-      name = "Alarm"
-   },
-   bed = {
-      pos = Vector3.new(-4.52546644, 5.00000334, 17.4178753),
-      matrix = {
-         Vector3.new(0.0772480145, 0, -0.9970119),
-         Vector3.new(0, 1, 0),
-         Vector3.new(0.9970119, 0, 0.0772480145)
-      },
-      name = "Bed"
-   },
-   bear = {
-      pos = Vector3.new(-8.43876457, 5.00000334, -8.79197693),
-      matrix = {
-         Vector3.new(0.997374952, 0, 0.072410278),
-         Vector3.new(0, 1, 0),
-         Vector3.new(-0.072410278, 0, 0.997374952)
-      },
-      name = "Bear"
-   },
-   lamp = {
-      pos = Vector3.new(8.50332642, 5.00000334, 19.6756325),
-      matrix = {
-         Vector3.new(-0.998574674, 3.19413402e-08, 0.0533724651),
-         Vector3.new(3.10384749e-08, 1, -1.77452169e-08),
-         Vector3.new(-0.0533724651, -1.60633249e-08, -0.998574674)
-      },
-      name = "Lamp"
-   },
-   closet = {
-      pos = Vector3.new(4.13197184, 5.12111855, -8.41910362),
-      matrix = {
-         Vector3.new(0.993054211, 0, 0.117657781),
-         Vector3.new(0, 1, 0),
-         Vector3.new(-0.117657781, 0, 0.993054211)
-      },
-      name = "Closet"
-   },
-   default = {
-      pos = Vector3.new(10.4230566, 5.00000334, 14.5195627),
-      matrix = {
-         Vector3.new(0.947909236, 1.45944297e-08, -0.318540603),
-         Vector3.new(-3.40286341e-08, 1, -5.54454544e-08),
-         Vector3.new(0.318540603, 6.33967616e-08, 0.947909236)
-      },
-      name = "Default"
-   }
-}
-
-local function spiritTeleportTo(position, matrix)
-   local player = game.Players.LocalPlayer
-   if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-      player.Character.HumanoidRootPart.CFrame = CFrame.new(position) * CFrame.fromMatrix(Vector3.new(), 
-         matrix[1], matrix[2], matrix[3]
-      )
-      return true
-   end
-   return false
-end
-
-local function spiritTeleportToLocation(loc)
-   return spiritTeleportTo(spiritPositions[loc].pos, spiritPositions[loc].matrix)
-end
-
-local function spiritGetLampHeat()
-   local success, value = pcall(function()
-      local lamp = workspace:FindFirstChild("Lamp")
-      if lamp then
-         local heat = lamp:FindFirstChild("Heat")
-         if heat and heat:IsA("NumberValue") then
-            return heat.Value
-         end
-      end
-      return nil
-   end)
-   return success and value or nil
-end
-
-local function spiritGetMaxActivationDistance()
-   local success, value = pcall(function()
-      local radio = workspace:FindFirstChild("Radio")
-      if radio then
-         local clickDetector = radio:FindFirstChild("ClickDetector")
-         if clickDetector and clickDetector:IsA("ClickDetector") then
-            return clickDetector.MaxActivationDistance
-         end
-      end
-      return nil
-   end)
-   return success and value or nil
-end
-
-local function spiritGetBearClickDetectorDistance()
-   local success, value = pcall(function()
-      local teddyBear = workspace:FindFirstChild("Teddy bear")
-      if teddyBear then
-         local clickDetector = teddyBear:FindFirstChild("ClickDetector")
-         if clickDetector and clickDetector:IsA("ClickDetector") then
-            return clickDetector.MaxActivationDistance
-         end
-      end
-      return nil
-   end)
-   return success and value or nil
-end
-
-local function spiritGetClosetProgress()
-   local success, value = pcall(function()
-      local monster = workspace:FindFirstChild("Monster")
-      if monster then
-         local closet = monster:FindFirstChild("Closet")
-         if closet then
-            local progress = closet:FindFirstChild("Progress")
-            if progress and progress:IsA("NumberValue") then
-               return progress.Value
-            end
-         end
-      end
-      return nil
-   end)
-   return success and value or nil
-end
-
-local function spiritIsBedHidden()
-   local success, result = pcall(function()
-      local bed = workspace:FindFirstChild("Bed")
-      if bed then
-         local hidden = bed:FindFirstChild("Hidden")
-         if hidden and hidden:IsA("BoolValue") then
-            return hidden.Value
-         end
-      end
-      return false
-   end)
-   return success and result or false
-end
-
-local function spiritCheckMonsterProgress()
-   local monster = workspace:FindFirstChild("Monster")
-   if not monster then return 0, {}, 0 end
-   
-   local paths = {"Door", "Window", "Vent"}
-   local maxProgress = 0
-   local details = {}
-   local countAt3 = 0
-   
-   for _, path in ipairs(paths) do
-      local target = monster:FindFirstChild(path)
-      if target then
-         local progress = target:FindFirstChild("Progress")
-         if progress and progress:IsA("NumberValue") then
-            details[path] = progress.Value
-            if progress.Value > maxProgress then
-               maxProgress = progress.Value
-            end
-            if progress.Value == 3 then
-               countAt3 = countAt3 + 1
-            end
-         end
-      end
-   end
-   
-   return maxProgress, details, countAt3
-end
-
-local function spiritCheckMonsterChanges(currentDetails)
-   local resetMessages = {}
-   
-   for path, value in pairs(currentDetails) do
-      local lastValue = lastSpiritMonsterProgress[path]
-      if lastValue ~= nil and value ~= lastValue then
-         if value == 0 and lastValue > 0 then
-            table.insert(resetMessages, path .. " is gone! (was " .. lastValue .. ")")
-         end
-      end
-   end
-   
-   for path, value in pairs(currentDetails) do
-      lastSpiritMonsterProgress[path] = value
-   end
-   
-   for path, lastValue in pairs(lastSpiritMonsterProgress) do
-      if currentDetails[path] == nil then
-         table.insert(resetMessages, path .. " disappeared!")
-         lastSpiritMonsterProgress[path] = nil
-      end
-   end
-   
-   if #resetMessages > 0 then
-      local message = table.concat(resetMessages, "\n")
-      notify("MONSTER IS GONE!", message, 5)
-   end
-   
-   return #resetMessages > 0
-end
-
-local function spiritCheckAlarmAndTeleport()
-   local currentDistance = spiritGetMaxActivationDistance()
-   if currentDistance == nil then 
-      lastSpiritDistanceAt8 = false
-      return false 
-   end
-   
-   local hidden = spiritIsBedHidden()
-   
-   if hidden then
-      return false
-   end
-   
-   if lastSpiritMaxDistance ~= nil and currentDistance == 0 and lastSpiritMaxDistance > 0 then
-      notify("ALARM RESET!", "Distance: " .. lastSpiritMaxDistance .. " → 0 - Teleporting to lamp!", 2)
-      spiritTeleportToLocation("lamp")
-      lastSpiritLampTime = tick()
-      lastSpiritMaxDistance = currentDistance
-      return true
-   end
-   
-   if currentDistance == 8 then
-      if not lastSpiritDistanceAt8 then
-         notify("RADIO READY!", "Distance set to 8 - Teleporting every 2 seconds", 2)
-         lastSpiritDistanceAt8 = true
-      end
-   else
-      if lastSpiritDistanceAt8 then
-         lastSpiritDistanceAt8 = false
-      end
-   end
-   
-   if lastSpiritDistanceAt8 and tick() - lastSpiritAlarmTime >= 2 then
-      notify("ALARM!", "Teleporting to alarm", 1.5)
-      spiritTeleportToLocation("alarm")
-      lastSpiritAlarmTime = tick()
-      return true
-   end
-   
-   lastSpiritMaxDistance = currentDistance
-   return false
-end
-
-local function spiritCheckBearAndTeleport()
-   local currentDistance = spiritGetBearClickDetectorDistance()
-   if currentDistance == nil then return false end
-   
-   local hidden = spiritIsBedHidden()
-   
-   if hidden then
-      return false
-   end
-   
-   local currentTime = tick()
-   
-   if lastSpiritBearDistance ~= nil and currentDistance == 0 and lastSpiritBearDistance > 0 then
-      notify("BEAR RESET!", "Distance: " .. lastSpiritBearDistance .. " → 0 - Teleporting to lamp!", 2)
-      spiritTeleportToLocation("lamp")
-      lastSpiritLampTime = tick()
-      lastSpiritBearDistance = currentDistance
-      return true
-   end
-   
-   if currentDistance >= 6 and currentDistance <= 8 and currentTime - lastSpiritBearCheckTime >= 3 then
-      notify("BEAR!", "Distance: " .. currentDistance .. " - Teleporting to bear!", 2)
-      spiritTeleportToLocation("bear")
-      lastSpiritBearCheckTime = currentTime
-      lastSpiritBearDistance = currentDistance
-      return true
-   end
-   
-   lastSpiritBearDistance = currentDistance
-   return false
-end
-
-local function spiritCheckClosetAndTeleport()
-   local currentProgress = spiritGetClosetProgress()
-   if currentProgress == nil then return false end
-   
-   local hidden = spiritIsBedHidden()
-   
-   if hidden then
-      return false
-   end
-   
-   if lastSpiritClosetProgress ~= nil and currentProgress == 3 and lastSpiritClosetProgress ~= 3 then
-      notify("CLOSET ALERT!", "Progress: 3 - Teleporting to closet!", 3)
-      spiritTeleportToLocation("closet")
-      lastSpiritClosetProgress = currentProgress
-      return true
-   end
-   
-   if lastSpiritClosetProgress ~= nil and currentProgress == 0 and lastSpiritClosetProgress == 3 then
-      notify("CLOSET RESET!", "Progress: 3 → 0 - Teleporting to lamp!", 2)
-      spiritTeleportToLocation("lamp")
-      lastSpiritLampTime = tick()
-      lastSpiritClosetProgress = currentProgress
-      return true
-   end
-   
-   lastSpiritClosetProgress = currentProgress
-   return false
-end
-
-local function spiritCheckLampAndTeleport()
-   local heat = spiritGetLampHeat()
-   if heat == nil then return false end
-   
-   if heat ~= lastSpiritLampHeat then
-      lastSpiritLampHeat = heat
-   end
-   
-   local shouldTeleport = false
-   local action = ""
-   
-   if heat == 0 then
-      shouldTeleport = true
-      action = "TURN ON"
-   elseif heat >= 60 and heat <= 70 then
-      shouldTeleport = true
-      action = "TURN OFF (" .. heat .. ")"
-   end
-   
-   if shouldTeleport and tick() - lastSpiritLampTime > 5 then
-      notify("LAMP NEEDS " .. action .. "!", "Heat: " .. heat, 3)
-      spiritTeleportToLocation("lamp")
-      lastSpiritLampTime = tick()
-      return true
-   end
-   
-   return false
-end
-
-local function spiritCheckLampIncrease()
-   local heat = spiritGetLampHeat()
-   if heat == nil then return false end
-   
-   if lastSpiritLampHeatValue == -1 then
-      lastSpiritLampHeatValue = heat
-      return false
-   end
-   
-   local increase = heat - lastSpiritLampHeatValue
-   
-   if increase >= 0.2 and increase <= 100 and tick() - lastSpiritLampIncreaseTime >= 2 then
-      notify("LAMP HEAT INCREASE!", "Heat increased by " .. string.format("%.2f", increase), 2)
-      spiritTeleportToLocation("lamp")
-      lastSpiritLampTime = tick()
-      lastSpiritLampIncreaseTime = tick()
-      lastSpiritLampHeatValue = heat
-      return true
-   end
-   
-   lastSpiritLampHeatValue = heat
-   return false
-end
-
-local function spiritHandleMonsterAt3()
-   notify("MONSTER AT 3!", "Teleporting to lamp first!", 3)
-   spiritTeleportToLocation("lamp")
-   task.wait(3)
-   notify("MONSTER AT 3!", "Now teleporting to bed!", 3)
-   spiritTeleportToLocation("bed")
-   task.wait(2)
-end
-
-local function spiritCheckAndAct()
-   local currentTime = tick()
-   local hidden = spiritIsBedHidden()
-   local monsterProgress, monsterDetails, countAt3 = spiritCheckMonsterProgress()
-   
-   if hidden ~= spiritBedHidden then
-      spiritBedHidden = hidden
-   end
-   
-   spiritCheckMonsterChanges(monsterDetails)
-   
-   if monsterProgress == 3 then
-      if spiritCheckLampIncrease() then
-         return
-      end
-   end
-   
-   if spiritCheckClosetAndTeleport() then
-      return
-   end
-   
-   if hidden then
-      return
-   end
-   
-   if spiritCheckBearAndTeleport() then
-      return
-   end
-   
-   if spiritCheckLampAndTeleport() then
-      return
-   end
-   
-   if spiritCheckAlarmAndTeleport() then
-      return
-   end
-   
-   if monsterProgress == 3 then
-      if spiritBloodmoonMode then
-         if countAt3 == 3 then
-            return
-         end
-      end
-      
-      if tick() - spiritMonsterCooldown > 10 then
-         spiritMonsterCooldown = tick()
-         spiritHandleMonsterAt3()
-      end
-      return
-   end
-   
-   for path, value in pairs(monsterDetails) do
-      local lastValue = lastSpiritMonsterProgress[path]
-      if lastValue ~= nil and value ~= lastValue then
-         if value == 0 and lastValue > 0 then
-            notify("MONSTER IS GONE!", path .. " reset to 0", 2)
-         end
-      end
-      lastSpiritMonsterProgress[path] = value
-   end
-end
-
-local function spiritStartHelper()
-   if spiritHelperRunning then
-      notify("Spirit Helper", "Already running", 2)
-      return
-   end
-   
-   spiritHelperRunning = true
-   lastSpiritLampTime = tick()
-   lastSpiritAlarmTime = tick()
-   lastSpiritBearCheckTime = tick()
-   lastSpiritLampIncreaseTime = tick()
-   spiritMonsterCooldown = 0
-   spiritBedHidden = spiritIsBedHidden()
-   lastSpiritLampHeat = spiritGetLampHeat()
-   lastSpiritLampHeatValue = spiritGetLampHeat()
-   lastSpiritMaxDistance = spiritGetMaxActivationDistance()
-   lastSpiritBearDistance = spiritGetBearClickDetectorDistance()
-   lastSpiritClosetProgress = spiritGetClosetProgress()
-   lastSpiritDistanceAt8 = (lastSpiritMaxDistance == 8)
-   
-   local _, details, _ = spiritCheckMonsterProgress()
-   for path, value in pairs(details) do
-      lastSpiritMonsterProgress[path] = value
-   end
-   
-   notify("Spirit Helper", "Auto assistant started", 2)
-   
-   spiritHelperThread = task.spawn(function()
-      while spiritHelperRunning do
-         local success, err = pcall(spiritCheckAndAct)
-         if not success then
-         end
-         task.wait(0.3)
-      end
-   end)
-end
-
-local function spiritStopHelper()
-   spiritHelperRunning = false
-   if spiritHelperThread then
-      task.cancel(spiritHelperThread)
-      spiritHelperThread = nil
-   end
-   notify("Spirit Helper", "Stopped", 2)
-end
-
-local function spiritToggleBloodmoon()
-   spiritBloodmoonMode = not spiritBloodmoonMode
-   notify("Bloodmoon Mode", spiritBloodmoonMode and "ENABLED - Hallucinations ignored" or "DISABLED - Normal mode", 3)
-end
-
-local function spiritToggleLampESP()
-   spiritLampESPEnabled = not spiritLampESPEnabled
-   if spiritLampESPEnabled then
-      local lamp = workspace:FindFirstChild("Lamp")
-      if lamp then
-         local bulb = lamp:FindFirstChild("Bulb")
-         if bulb then
-            if spiritLampBillboard and spiritLampBillboard.Parent then
-               spiritLampBillboard:Destroy()
-            end
-            
-            spiritLampBillboard = Instance.new("BillboardGui")
-            spiritLampBillboard.Name = "LampHeatDisplay"
-            spiritLampBillboard.Adornee = bulb
-            spiritLampBillboard.Size = UDim2.new(0, 100, 0, 30)
-            spiritLampBillboard.StudsOffset = Vector3.new(0, 1.5, 0)
-            spiritLampBillboard.AlwaysOnTop = true
-            spiritLampBillboard.Parent = bulb
-            
-            local frame = Instance.new("Frame")
-            frame.Size = UDim2.new(1, 0, 1, 0)
-            frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-            frame.BackgroundTransparency = 0.3
-            frame.BorderSizePixel = 0
-            frame.Parent = spiritLampBillboard
-            
-            local uiCorner = Instance.new("UICorner")
-            uiCorner.CornerRadius = UDim.new(0, 8)
-            uiCorner.Parent = frame
-            
-            local textLabel = Instance.new("TextLabel")
-            textLabel.Size = UDim2.new(1, 0, 1, 0)
-            textLabel.BackgroundTransparency = 1
-            textLabel.Text = "Lamp Heat: --%"
-            textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            textLabel.TextSize = 14
-            textLabel.Font = Enum.Font.GothamBold
-            textLabel.TextStrokeTransparency = 0.5
-            textLabel.Parent = frame
-            
-            spiritLampESPThread = task.spawn(function()
-               while spiritLampESPEnabled and spiritLampBillboard and spiritLampBillboard.Parent do
-                  local heat = spiritGetLampHeat()
-                  if heat ~= nil then
-                     local color
-                     if heat == 0 then
-                        color = Color3.fromRGB(255, 100, 100)
-                        textLabel.Text = "LAMP OFF - 0%"
-                     elseif heat >= 60 and heat <= 70 then
-                        color = Color3.fromRGB(255, 200, 100)
-                        textLabel.Text = "TURN OFF! " .. math.floor(heat) .. "%"
-                     else
-                        color = Color3.fromRGB(100, 255, 100)
-                        textLabel.Text = "Lamp Heat: " .. math.floor(heat) .. "%"
-                     end
-                     frame.BackgroundColor3 = color
-                     frame.BackgroundTransparency = 0.2
-                  else
-                     textLabel.Text = "Lamp not found"
-                     frame.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-                  end
-                  task.wait(0.2)
-               end
-            end)
-         end
-      end
-      notify("Lamp ESP", "Enabled", 2)
-   else
-      if spiritLampESPThread then
-         task.cancel(spiritLampESPThread)
-         spiritLampESPThread = nil
-      end
-      if spiritLampBillboard and spiritLampBillboard.Parent then
-         spiritLampBillboard:Destroy()
-         spiritLampBillboard = nil
-      end
-      notify("Lamp ESP", "Disabled", 2)
-   end
-end
+-- Кнопка для запуска отдельного GUI Spirit Helper
 
 SpiritHelperTab:CreateButton({
-   Name = "START auto helper",
-   Callback = spiritStartHelper
-})
-
-SpiritHelperTab:CreateButton({
-   Name = "STOP auto helper",
-   Callback = spiritStopHelper
-})
-
-SpiritHelperTab:CreateButton({
-   Name = "RESTART auto helper",
-   Callback = function()
-      spiritStopHelper()
-      task.wait(0.5)
-      spiritStartHelper()
-   end
-})
-
-SpiritHelperTab:CreateButton({
-   Name = "Check radio distance",
-   Callback = function()
-      local distance = spiritGetMaxActivationDistance()
-      if distance ~= nil then
-         notify("Radio Distance", "Current: " .. distance, 2)
-      else
-         notify("Error", "Radio ClickDetector not found", 2)
-      end
-   end
-})
-
-SpiritHelperTab:CreateButton({
-   Name = "Check bear distance",
-   Callback = function()
-      local distance = spiritGetBearClickDetectorDistance()
-      if distance ~= nil then
-         notify("Bear Distance", "Current: " .. distance, 2)
-      else
-         notify("Error", "Teddy bear ClickDetector not found", 2)
-      end
-   end
-})
-
-SpiritHelperTab:CreateButton({
-   Name = "Check closet progress",
-   Callback = function()
-      local progress = spiritGetClosetProgress()
-      if progress ~= nil then
-         notify("Closet Progress", "Current: " .. progress, 2)
-      else
-         notify("Error", "Closet not found", 2)
-      end
-   end
-})
-
-SpiritHelperTab:CreateButton({
-   Name = "Force check lamp",
-   Callback = function()
-      local heat = spiritGetLampHeat()
-      if heat == nil then
-         notify("Error", "Lamp not found", 2)
-         return
-      end
-      
-      notify("Lamp Heat", "Current: " .. heat, 2)
-      
-      if heat == 0 or (heat >= 60 and heat <= 70) then
-         local action = (heat == 0) and "TURN ON" or "TURN OFF"
-         notify("Manual teleport", "Heat: " .. heat .. " - " .. action, 2)
-         spiritTeleportToLocation("lamp")
-      end
-   end
-})
-
-SpiritHelperTab:CreateButton({
-   Name = "Check lamp heat",
-   Callback = function()
-      local heat = spiritGetLampHeat()
-      if heat == nil then
-         notify("Error", "Lamp not found", 2)
-         return
-      end
-      
-      local status = "Current: " .. heat
-      if heat == 0 then
-         status = status .. " (needs TURN ON)"
-      elseif heat >= 60 and heat <= 70 then
-         status = status .. " (needs TURN OFF)"
-      end
-      notify("Lamp Heat", status, 2)
-   end
-})
-
-SpiritHelperTab:CreateButton({
-   Name = "Check bed status",
-   Callback = function()
-      local hidden = spiritIsBedHidden()
-      notify("Bed Status", hidden and "HIDDEN" or "VISIBLE", 2)
-   end
-})
-
--- Bloodmoon кнопки внутри Spirit Helper Tab
-SpiritHelperTab:CreateButton({
-    Name = "────────── Bloodmoon ──────────",
-    Callback = function() end
-})
-
-SpiritHelperTab:CreateButton({
-    Name = "BLOODMOON MODE",
-    Callback = spiritToggleBloodmoon
-})
-
-SpiritHelperTab:CreateButton({
-    Name = "Teleport to Closet",
+    Name = "Open Spirit Helper GUI",
     Callback = function()
-        spiritTeleportToLocation("closet")
-        notify("Teleport", "Teleported to closet", 2)
+        pcall(function()
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/ZoVCopter13/Rm/refs/heads/main/Spirit.lua'))()
+            notify("Spirit Helper", "GUI opened! Press H to open menu", 3)
+        end)
     end
 })
 
-SpiritHelperTab:CreateButton({
-    Name = "Check Closet Progress",
-    Callback = function()
-        local progress = spiritGetClosetProgress()
-        if progress ~= nil then
-            notify("Closet Progress", "Current: " .. progress, 2)
-        else
-            notify("Error", "Closet not found", 2)
-        end
-    end
-})
-
-SpiritHelperTab:CreateButton({
-    Name = "Bloodmoon Info",
-    Callback = function()
-        notify("Bloodmoon Mode", "When enabled:\n- All 3 monsters at 3 (hallucinations) are IGNORED\n- Real monster attacks (1-2 monsters at 3) still trigger teleport\n- Closet, Bear, Alarm, Lamp work normally", 5)
-    end
-})
-
-SpiritHelperTab:CreateButton({
-    Name = "Lamp Heat ESP",
-    Callback = spiritToggleLampESP
-})
+print("✅ Spirit Helper Tab ready")
 
 
 
