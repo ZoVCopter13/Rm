@@ -9,7 +9,7 @@ local Window = Rayfield:CreateWindow({
    LoadingTitle = "Spirit Helper",
    LoadingSubtitle = "Auto Assistant",
    Theme = "Default",
-   ToggleUIKeybind = "H",
+   ToggleUIKeybind = "K",
    DisableRayfieldPrompts = false,
    DisableBuildWarnings = false,
    ConfigurationSaving = {
@@ -543,7 +543,4 @@ MainTab:CreateButton({
    Callback = toggleBloodmoon
 })
 
-print("✅ Spirit Helper Standalone loaded - Press H to open menu")
-print("Features: Auto lamp, bear, alarm, closet, monster handler")
-print("Lamp heat display: Shows temperature above lamp")
-print("Object highlighting: Teleported objects glow yellow for 2 seconds")
+
