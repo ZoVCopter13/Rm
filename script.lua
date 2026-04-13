@@ -507,25 +507,99 @@ local function clearAllConnections()
     activeConnections = {}
 end
 
--- ========== PLAYER ESP (ДЛЯ ИГРОКОВ В WORKSPACE) ==========
+-- ========== VISUALS TAB ==========
+-- Оптимизированный ESP без лагов
+
+local fullbrightEnabled = false
+local fullbrightConnections = {}
+
+-- Хранилище для подсветок
+local activeHighlights = {}
+local activeConnections = {}
+
+-- ========== СПИСОК МОНСТРОВ (ДЛЯ ИГНОРИРОВАНИЯ) ==========
+local MONSTER_NAMES = {
+    "Mutant", "WeirdDad", "Winterhorn", "Intruder", "DoorMonster",
+    "Zombie", "FrozenZombie", "FrozenBloodZombie", "BloodZombie",
+    "Stalker", "WorkerHead", "Spider", "Arachnid", "BunkerRat"
+}
+
+local function isMonster(model)
+    for _, name in ipairs(MONSTER_NAMES) do
+        if model.Name == name then
+            return true
+        end
+    end
+    return false
+end
+
+local function createHighlight(part, color)
+    if not part or not part:IsA("BasePart") then return nil end
+    local highlight = Instance.new("Highlight")
+    highlight.Adornee = part
+    highlight.FillColor = color
+    highlight.FillTransparency = 0.5
+    highlight.OutlineColor = color
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Name = "OptimizedESP"
+    highlight.Parent = part
+    return highlight
+end
+
+local function createModelHighlight(model, color)
+    if not model then return nil end
+    local highlights = {}
+    for _, part in pairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local h = createHighlight(part, color)
+            if h then table.insert(highlights, h) end
+        end
+    end
+    return highlights
+end
+
+local function destroyHighlights(highlights)
+    if type(highlights) == "table" then
+        for _, h in ipairs(highlights) do
+            pcall(function() h:Destroy() end)
+        end
+    else
+        pcall(function() highlights:Destroy() end)
+    end
+end
+
+local function clearAllHighlights()
+    for _, highlights in pairs(activeHighlights) do
+        destroyHighlights(highlights)
+    end
+    activeHighlights = {}
+end
+
+local function clearAllConnections()
+    for _, conn in ipairs(activeConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    activeConnections = {}
+end
+
+-- ========== PLAYER ESP ==========
 local playerEspEnabled = false
 local playerHighlights = {}
 local playerBillboards = {}
 local playerEspThread = nil
 
--- Функция для получения всех игроков из workspace
-local function getAllPlayers()
+local function getPlayersFromWorkspace()
     local players = {}
     local localPlayerName = game.Players.LocalPlayer.Name
     for _, obj in pairs(workspace:GetChildren()) do
-        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Name ~= localPlayerName then
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Name ~= localPlayerName and not isMonster(obj) then
             table.insert(players, obj)
         end
     end
     return players
 end
 
--- Цвет игрока в зависимости от HP
 local function getPlayerColorByHealth(playerModel)
     local humanoid = playerModel:FindFirstChild("Humanoid")
     if humanoid then
@@ -534,14 +608,14 @@ local function getPlayerColorByHealth(playerModel)
         local percent = health / maxHealth
         
         if percent <= 0.3 then
-            return Color3.fromRGB(255, 50, 50) -- Красный (опасно)
+            return Color3.fromRGB(255, 50, 50)
         elseif percent <= 0.6 then
-            return Color3.fromRGB(255, 200, 50) -- Жёлтый (средне)
+            return Color3.fromRGB(255, 200, 50)
         else
-            return Color3.fromRGB(50, 255, 50) -- Зелёный (здоров)
+            return Color3.fromRGB(50, 255, 50)
         end
     end
-    return Color3.fromRGB(0, 120, 255) -- Синий (по умолчанию)
+    return Color3.fromRGB(0, 120, 255)
 end
 
 local function getPlayerHealth(playerModel)
@@ -644,7 +718,7 @@ local function updateBillboardHealth(billboardData, health, maxHealth)
 end
 
 local function addPlayerHighlight(playerModel)
-    if not playerModel or playerHighlights[playerModel] then return end
+    if not playerModel or playerHighlights[playerModel] or isMonster(playerModel) then return end
     
     local color = getPlayerColorByHealth(playerModel)
     playerHighlights[playerModel] = createModelHighlight(playerModel, color)
@@ -677,8 +751,7 @@ end
 local function updateAllPlayerInfo()
     if not playerEspEnabled then return end
     for playerModel, highlights in pairs(playerHighlights) do
-        if playerModel and playerModel.Parent == workspace then
-            -- Обновляем цвет подсветки в зависимости от HP
+        if playerModel and playerModel.Parent == workspace and not isMonster(playerModel) then
             local color = getPlayerColorByHealth(playerModel)
             if highlights then
                 if type(highlights) == "table" then
@@ -694,7 +767,6 @@ local function updateAllPlayerInfo()
                 end
             end
             
-            -- Обновляем HP в билборде
             local health, maxHealth = getPlayerHealth(playerModel)
             if playerBillboards[playerModel] then
                 updateBillboardHealth(playerBillboards[playerModel], health, maxHealth)
@@ -707,7 +779,7 @@ end
 
 local function setupPlayerESP()
     if playerEspEnabled then
-        local players = getAllPlayers()
+        local players = getPlayersFromWorkspace()
         for _, playerModel in ipairs(players) do
             addPlayerHighlight(playerModel)
         end
@@ -715,7 +787,7 @@ local function setupPlayerESP()
         local workspaceAddedConn = workspace.DescendantAdded:Connect(function(descendant)
             if playerEspEnabled and descendant:IsA("Model") and descendant:FindFirstChild("Humanoid") then
                 local localPlayerName = game.Players.LocalPlayer.Name
-                if descendant.Name ~= localPlayerName then
+                if descendant.Name ~= localPlayerName and not isMonster(descendant) then
                     task.wait(0.2)
                     addPlayerHighlight(descendant)
                 end
@@ -769,13 +841,12 @@ end
 local monsterEnabled = false
 local monsterHighlights = {}
 
-local monsterNames = {"Mutant", "WeirdDad", "Winterhorn", "Intruder", "DoorMonster"}
 local monsterColors = {
-    Mutant = Color3.fromRGB(255, 48, 48),      -- Красный
-    WeirdDad = Color3.fromRGB(255, 128, 0),    -- Оранжевый
-    Winterhorn = Color3.fromRGB(0, 255, 255),  -- Голубой
-    Intruder = Color3.fromRGB(255, 50, 100),   -- Розовый
-    DoorMonster = Color3.fromRGB(255, 200, 100) -- Светло-оранжевый
+    Mutant = Color3.fromRGB(255, 48, 48),
+    WeirdDad = Color3.fromRGB(255, 128, 0),
+    Winterhorn = Color3.fromRGB(0, 255, 255),
+    Intruder = Color3.fromRGB(255, 50, 100),
+    DoorMonster = Color3.fromRGB(255, 200, 100)
 }
 
 local function addMonsterHighlight(monster)
@@ -794,29 +865,18 @@ end
 
 local function setupMonsterESP()
     if monsterEnabled then
-        -- Подсветить существующих монстров
-        for _, name in ipairs(monsterNames) do
+        for _, name in pairs({"Mutant", "WeirdDad", "Winterhorn", "Intruder", "DoorMonster"}) do
             local monster = workspace:FindFirstChild(name)
-            if monster then 
-                addMonsterHighlight(monster)
-            end
+            if monster then addMonsterHighlight(monster) end
         end
         
-        -- Ищем монстров во всех потомках workspace
         for _, descendant in pairs(workspace:GetDescendants()) do
-            if descendant:IsA("Model") then
-                for _, name in ipairs(monsterNames) do
-                    if descendant.Name == name and not monsterHighlights[descendant] then
-                        addMonsterHighlight(descendant)
-                        break
-                    end
-                end
+            if descendant:IsA("Model") and monsterColors[descendant.Name] and not monsterHighlights[descendant] then
+                addMonsterHighlight(descendant)
             end
         end
 
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-        -- Отслеживаем появление монстров в ReplicatedStorage
         for _, name in ipairs({"WeirdDad", "Winterhorn", "Intruder"}) do
             local monsterInStorage = ReplicatedStorage:FindFirstChild(name)
             if monsterInStorage then
@@ -830,29 +890,17 @@ local function setupMonsterESP()
             end
         end
 
-        -- Отслеживаем появление монстров в workspace
         local conn = workspace.DescendantAdded:Connect(function(descendant)
-            if monsterEnabled and descendant:IsA("Model") then
-                for _, name in ipairs(monsterNames) do
-                    if descendant.Name == name then
-                        task.wait(0.1)
-                        addMonsterHighlight(descendant)
-                        break
-                    end
-                end
+            if monsterEnabled and descendant:IsA("Model") and monsterColors[descendant.Name] then
+                task.wait(0.1)
+                addMonsterHighlight(descendant)
             end
         end)
         table.insert(activeConnections, conn)
 
-        -- Отслеживаем удаление монстров
         local removeConn = workspace.DescendantRemoving:Connect(function(descendant)
-            if monsterEnabled and descendant:IsA("Model") then
-                for _, name in ipairs(monsterNames) do
-                    if descendant.Name == name then
-                        removeMonsterHighlight(descendant)
-                        break
-                    end
-                end
+            if monsterEnabled and descendant:IsA("Model") and monsterColors[descendant.Name] then
+                removeMonsterHighlight(descendant)
             end
         end)
         table.insert(activeConnections, removeConn)
@@ -1165,7 +1213,6 @@ VisualsTab:CreateButton({
         })
     end
 })
-
 
 -- ========== TELEPORTS 1 TAB ==========
 local function teleportToGenerator()
