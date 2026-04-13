@@ -1068,7 +1068,7 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
 
 -- ========== PLAYER ESP КНОПКА ==========
 VisualsTab:CreateButton({
-    Name = "Player ESP (цвет по HP)",
+    Name = "Player ESP",
     Callback = function()
         togglePlayerESP()
     end
