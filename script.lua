@@ -1,6 +1,10 @@
 --OPEN SOURCE
 --RM
 
+
+--OPEN SOURCE
+--RM
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -506,7 +510,252 @@ local function clearAllConnections()
     activeConnections = {}
 end
 
--- Monster ESP (Mutant, WeirdDad, Winterhorn, Intruder, DoorMonster)
+-- ========== PLAYER ESP (С СИНЕЙ ПОДСВЕТКОЙ И HP) ==========
+local playerEspEnabled = false
+local playerHighlights = {}
+local playerBillboards = {}
+local playerEspThread = nil
+
+local function getPlayerColor(player)
+    return Color3.fromRGB(0, 120, 255)
+end
+
+local function getPlayerHealth(player)
+    local character = player.Character
+    if character and character:FindFirstChild("Humanoid") then
+        local hum = character.Humanoid
+        return math.floor(hum.Health), math.floor(hum.MaxHealth)
+    end
+    return 0, 100
+end
+
+local function createPlayerBillboard(player, character)
+    if not character then return nil end
+    
+    local attachPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head") or character:FindFirstChild("Torso")
+    if not attachPart then return nil end
+    
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "PlayerHPDisplay"
+    billboard.Adornee = attachPart
+    billboard.Size = UDim2.new(0, 120, 0, 35)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = attachPart
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.BackgroundTransparency = 0.4
+    frame.BorderSizePixel = 0
+    frame.Parent = billboard
+    
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 8)
+    uiCorner.Parent = frame
+    
+    local healthBarBg = Instance.new("Frame")
+    healthBarBg.Size = UDim2.new(0.9, 0, 0.3, 0)
+    healthBarBg.Position = UDim2.new(0.05, 0, 0.6, 0)
+    healthBarBg.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    healthBarBg.BorderSizePixel = 0
+    healthBarBg.Parent = frame
+    
+    local healthBarBgCorner = Instance.new("UICorner")
+    healthBarBgCorner.CornerRadius = UDim.new(0, 4)
+    healthBarBgCorner.Parent = healthBarBg
+    
+    local healthBar = Instance.new("Frame")
+    healthBar.Size = UDim2.new(1, 0, 1, 0)
+    healthBar.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+    healthBar.BorderSizePixel = 0
+    healthBar.Parent = healthBarBg
+    
+    local healthBarCorner = Instance.new("UICorner")
+    healthBarCorner.CornerRadius = UDim.new(0, 4)
+    healthBarCorner.Parent = healthBar
+    
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    textLabel.Position = UDim2.new(0, 0, 0.1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = player.Name
+    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLabel.TextSize = 14
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextStrokeTransparency = 0.3
+    textLabel.Parent = frame
+    
+    local healthText = Instance.new("TextLabel")
+    healthText.Size = UDim2.new(1, 0, 0.3, 0)
+    healthText.Position = UDim2.new(0, 0, 0.6, 0)
+    healthText.BackgroundTransparency = 1
+    healthText.Text = "HP: ?"
+    healthText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    healthText.TextSize = 11
+    healthText.Font = Enum.Font.Gotham
+    healthText.TextStrokeTransparency = 0.3
+    healthText.Parent = frame
+    
+    return billboard, healthBar, healthText
+end
+
+local function updateBillboardHealth(billboardData, health, maxHealth)
+    if not billboardData then return end
+    local healthBar = billboardData.healthBar
+    local healthText = billboardData.healthText
+    if healthBar then
+        local percent = math.clamp(health / maxHealth, 0, 1)
+        healthBar.Size = UDim2.new(percent, 0, 1, 0)
+        if percent <= 0.3 then
+            healthBar.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        elseif percent <= 0.6 then
+            healthBar.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+        else
+            healthBar.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
+        end
+    end
+    if healthText then
+        healthText.Text = " " .. health .. "/" .. maxHealth
+    end
+end
+
+local function addPlayerHighlight(player)
+    if not player or playerHighlights[player] then return end
+    local character = player.Character
+    if not character then return end
+    
+    local color = getPlayerColor(player)
+    playerHighlights[player] = createModelHighlight(character, color)
+    activeHighlights["Player_" .. player.Name] = playerHighlights[player]
+    
+    local billboard, healthBar, healthText = createPlayerBillboard(player, character)
+    if billboard then
+        playerBillboards[player] = {
+            billboard = billboard,
+            healthBar = healthBar,
+            healthText = healthText
+        }
+        local health, maxHealth = getPlayerHealth(player)
+        updateBillboardHealth(playerBillboards[player], health, maxHealth)
+    end
+end
+
+local function removePlayerHighlight(player)
+    if playerHighlights[player] then
+        destroyHighlights(playerHighlights[player])
+        playerHighlights[player] = nil
+        activeHighlights["Player_" .. player.Name] = nil
+    end
+    if playerBillboards[player] then
+        pcall(function() playerBillboards[player].billboard:Destroy() end)
+        playerBillboards[player] = nil
+    end
+end
+
+local function updateAllPlayerInfo()
+    if not playerEspEnabled then return end
+    for player, highlights in pairs(playerHighlights) do
+        if player and player.Character then
+            local color = getPlayerColor(player)
+            if highlights then
+                if type(highlights) == "table" then
+                    for _, h in ipairs(highlights) do
+                        if h then
+                            h.FillColor = color
+                            h.OutlineColor = color
+                        end
+                    end
+                elseif highlights:IsA("Highlight") then
+                    highlights.FillColor = color
+                    highlights.OutlineColor = color
+                end
+            end
+            
+            local health, maxHealth = getPlayerHealth(player)
+            if playerBillboards[player] then
+                updateBillboardHealth(playerBillboards[player], health, maxHealth)
+            end
+        end
+    end
+end
+
+local function onCharacterAdded(player, character)
+    if playerEspEnabled and player ~= game.Players.LocalPlayer then
+        task.wait(0.2)
+        removePlayerHighlight(player)
+        addPlayerHighlight(player)
+    end
+end
+
+local function setupPlayerESP()
+    if playerEspEnabled then
+        for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+            if player ~= game.Players.LocalPlayer then
+                addPlayerHighlight(player)
+            end
+        end
+        
+        local playerAddedConn = game:GetService("Players").PlayerAdded:Connect(function(player)
+            if playerEspEnabled and player ~= game.Players.LocalPlayer then
+                task.wait(0.5)
+                addPlayerHighlight(player)
+                player.CharacterAdded:Connect(function(character)
+                    onCharacterAdded(player, character)
+                end)
+            end
+        end)
+        table.insert(activeConnections, playerAddedConn)
+        
+        local playerRemovingConn = game:GetService("Players").PlayerRemoving:Connect(function(player)
+            if playerEspEnabled then
+                removePlayerHighlight(player)
+            end
+        end)
+        table.insert(activeConnections, playerRemovingConn)
+        
+        for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+            if player ~= game.Players.LocalPlayer then
+                if not player.CharacterAdded:IsConnected(onCharacterAdded) then
+                    player.CharacterAdded:Connect(function(character)
+                        onCharacterAdded(player, character)
+                    end)
+                end
+            end
+        end
+        
+        playerEspThread = task.spawn(function()
+            while playerEspEnabled do
+                updateAllPlayerInfo()
+                task.wait(0.3)
+            end
+        end)
+    else
+        for player, highlights in pairs(playerHighlights) do
+            destroyHighlights(highlights)
+        end
+        playerHighlights = {}
+        for player, billboardData in pairs(playerBillboards) do
+            pcall(function() billboardData.billboard:Destroy() end)
+        end
+        playerBillboards = {}
+    end
+end
+
+local function togglePlayerESP()
+    playerEspEnabled = not playerEspEnabled
+    notify("Player ESP", playerEspEnabled and "ON" or "OFF", 2)
+    if playerEspEnabled then
+        setupPlayerESP()
+    else
+        clearAllHighlights()
+        clearAllConnections()
+        if playerEspThread then task.cancel(playerEspThread) end
+        setupPlayerESP()
+    end
+end
+
+-- ========== MONSTER ESP ==========
 local monsterEnabled = false
 local monsterHighlights = {}
 
@@ -539,9 +788,9 @@ local function setupMonsterESP()
             local monster = workspace:FindFirstChild(name)
             if monster then addMonsterHighlight(monster) end
         end
-        
+
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        
+
         for _, name in ipairs({"WeirdDad", "Winterhorn", "Intruder"}) do
             local monsterInStorage = ReplicatedStorage:FindFirstChild(name)
             if monsterInStorage then
@@ -554,7 +803,7 @@ local function setupMonsterESP()
                 table.insert(activeConnections, movedConn)
             end
         end
-        
+
         local conn = workspace.DescendantAdded:Connect(function(descendant)
             if monsterEnabled and descendant:IsA("Model") then
                 for _, name in ipairs(monsterNames) do
@@ -567,7 +816,7 @@ local function setupMonsterESP()
             end
         end)
         table.insert(activeConnections, conn)
-        
+
         local removeConn = workspace.DescendantRemoving:Connect(function(descendant)
             if monsterEnabled and descendant:IsA("Model") then
                 for _, name in ipairs(monsterNames) do
@@ -588,21 +837,21 @@ local function setupMonsterESP()
 end
 
 local ButtonMonsterESP = VisualsTab:CreateButton({
-    Name = "Monster ESP",
-    Callback = function()
-        monsterEnabled = not monsterEnabled
-        notify("Monster ESP", monsterEnabled and "ON" or "OFF", 2)
-        if monsterEnabled then
-            setupMonsterESP()
-        else
-            clearAllHighlights()
-            clearAllConnections()
-            setupMonsterESP()
-        end
-    end
+   Name = "Monster ESP",
+   Callback = function()
+       monsterEnabled = not monsterEnabled
+       notify("Monster ESP", monsterEnabled and "ON" or "OFF", 2)
+       if monsterEnabled then
+           setupMonsterESP()
+       else
+           clearAllHighlights()
+           clearAllConnections()
+           setupMonsterESP()
+       end
+   end
 })
 
--- Zombie ESP
+-- ========== ZOMBIE ESP ==========
 local zombieEnabled = false
 local zombieHighlights = {}
 
@@ -626,7 +875,7 @@ local function setupZombieESP()
                 addZombieHighlight(zombie)
             end
         end
-        
+
         local conn = workspace.DescendantAdded:Connect(function(descendant)
             if zombieEnabled and descendant:IsA("Model") then
                 if descendant.Name == "Zombie" or descendant.Name == "FrozenZombie" or descendant.Name == "FrozenBloodZombie" or descendant.Name == "BloodZombie" then
@@ -636,7 +885,7 @@ local function setupZombieESP()
             end
         end)
         table.insert(activeConnections, conn)
-        
+
         local removeConn = workspace.DescendantRemoving:Connect(function(descendant)
             if zombieEnabled and descendant:IsA("Model") then
                 if descendant.Name == "Zombie" or descendant.Name == "FrozenZombie" or descendant.Name == "FrozenBloodZombie" or descendant.Name == "BloodZombie" then
@@ -668,7 +917,7 @@ local ButtonZombieESP = VisualsTab:CreateButton({
     end
 })
 
--- Stalker ESP
+-- ========== STALKER ESP ==========
 local stalkerEnabled = false
 local stalkerHighlights = nil
 
@@ -680,7 +929,7 @@ local function setupStalkerESP()
             stalkerHighlights = createModelHighlight(stalker, Color3.fromRGB(255, 0, 255))
             activeHighlights["Stalker"] = stalkerHighlights
         end
-        
+
         local conn = workspace.DescendantAdded:Connect(function(descendant)
             if stalkerEnabled and descendant.Name == "Stalker" and descendant:IsA("Model") then
                 task.wait(0.1)
@@ -712,7 +961,7 @@ local ButtonStalkerESP = VisualsTab:CreateButton({
     end
 })
 
--- Spider ESP
+-- ========== SPIDER ESP ==========
 local spiderEnabled = false
 local spiderHighlights = {}
 
@@ -729,7 +978,7 @@ local function setupSpiderESP()
             local spider = workspace:FindFirstChild(name)
             if spider then addSpiderHighlight(spider) end
         end
-        
+
         local conn = workspace.DescendantAdded:Connect(function(descendant)
             if spiderEnabled and descendant:IsA("Model") then
                 if descendant.Name == "WorkerHead" or descendant.Name == "Spider" or descendant.Name == "Arachnid" then
@@ -762,8 +1011,15 @@ local ButtonSpiderESP = VisualsTab:CreateButton({
     end
 })
 
+-- ========== PLAYER ESP КНОПКА ==========
+VisualsTab:CreateButton({
+    Name = "Player ESP",
+    Callback = function()
+        togglePlayerESP()
+    end
+})
 
--- Fullbright
+-- ========== FULLBRIGHT ==========
 local ButtonFullbright = VisualsTab:CreateButton({
    Name = "Fullbright",
    Callback = function()
@@ -821,7 +1077,7 @@ local ButtonFullbright = VisualsTab:CreateButton({
    end
 })
 
--- DISABLE ALL ESP
+-- ========== DISABLE ALL ESP ==========
 VisualsTab:CreateButton({
     Name = "DISABLE ALL ESP",
     Callback = function()
@@ -829,7 +1085,9 @@ VisualsTab:CreateButton({
         zombieEnabled = false
         stalkerEnabled = false
         spiderEnabled = false
-        ratEnabled = false
+        playerEspEnabled = false
+        
+        if playerEspThread then task.cancel(playerEspThread) end
         
         clearAllHighlights()
         clearAllConnections()
@@ -838,13 +1096,12 @@ VisualsTab:CreateButton({
         stalkerHighlights = nil
         zombieHighlights = {}
         spiderHighlights = {}
-        ratHighlights = {}
+        playerHighlights = {}
+        playerBillboards = {}
         
         notify("ESP", "All ESP disabled", 2)
     end
 })
-
-
 
 
 -- ========== TELEPORTS 1 TAB ==========
