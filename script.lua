@@ -1,5 +1,4 @@
 --RM
---Open sourse
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
@@ -48,6 +47,7 @@ local MansionMainTab = Window:CreateTab("main mansion", 4483362458)
 local MansionTeleportsTab = Window:CreateTab("mansion teleports", 4483362458)
 local BunkerTab = Window:CreateTab("bunker", 4483362458)
 local ItemGrabberTab = Window:CreateTab("item grabber", 4483362458)
+
 
 -- Переменные
 local oxygenLoopRunning = false
@@ -180,38 +180,7 @@ local ButtonDisableCold = Tab:CreateButton({
    end
 })
 
-local ButtonInfinityHunger = Tab:CreateButton({
-   Name = "Infinity hunger",
-   Callback = function()
-       local success = pcall(function()
-           local player = game.Players.LocalPlayer
-           local statusUI = player.PlayerGui:FindFirstChild("StatusUI")
-           if statusUI then
-               local foodBG = statusUI:FindFirstChild("FoodBG")
-               if foodBG then
-                   foodBG.Visible = false
-               end
-           end
-           local replicatedStorage = game:GetService("ReplicatedStorage")
-           local gameState = replicatedStorage:FindFirstChild("GameState")
-           if gameState then
-               local weirdStrict = gameState:FindFirstChild("WeirdStrict")
-               if weirdStrict then
-                   weirdStrict.Value = false
-               end
-               local totalModifiers = gameState:FindFirstChild("TotalModifiers")
-               if totalModifiers then
-                   totalModifiers.Value = 0
-               end
-           end
-       end)
-       if success then
-           notify("Infinity hunger", "on", 2)
-       else
-           notify("Infinity hunger", "Failed to enable", 2)
-       end
-   end
-})
+
 
 local function generateRandomName()
     local length = math.random(20, 35)
@@ -256,37 +225,9 @@ local ButtonRenameKick = Tab:CreateButton({
    end
 })
 
-local ButtonRemoveBarriers = Tab:CreateButton({
-   Name = "Remove All Barriers",
-   Callback = function()
-       local success = pcall(function()
-           local doors = workspace:FindFirstChild("Doors")
-           if doors then
-               local removed = 0
-               for _, closet in pairs(doors:GetChildren()) do
-                   if closet.Name == "Closet" and closet:FindFirstChild("Ignore") then
-                       closet.Ignore:Destroy()
-                       removed = removed + 1
-                   end
-               end
-               notify("Barriers", "Removed " .. removed .. " closet barriers", 2)
-           else
-               notify("Barriers", "Doors folder not found", 2)
-           end
-       end)
 
-       if not success then
-           notify("Barriers", "Failed to remove barriers", 2)
-       end
-   end
-})
 
-local ButtonInfo = Tab:CreateButton({
-   Name = "Info",
-   Callback = function()
-       notify("Info", "script ZOVCOPTER by NAGIEV", 5)
-   end
-})
+
 
 -- ========== PLAYER TAB ==========
 local sprintButton
@@ -1409,149 +1350,7 @@ local RefuelButton = TeleportsTab:CreateButton({
         refuelGenerator()
     end
 })
--- ========== AUTO WIRE TAB ==========
-local autoRepairEnabled = false
-local autoRepairThread = nil
-local OneTime = false
 
-local RS = game:GetService("ReplicatedStorage")
-local Remotes = RS.Remotes
-
-local function bypassAntiCheat()
-    local disabledAC = false
-    local remotesFolder = game.ReplicatedStorage.Remotes
-    local AnticheatRemote = remotesFolder.Kick
-    if disabledAC then return end
-
-    AnticheatRemote.Name = ""
-    Instance.new("RemoteEvent", remotesFolder).Name = "Kick"
-    disabledAC = true
-end
-
-local function startAutoRepair()
-    if autoRepairEnabled then
-        notify("Auto Wire", "Already running!", 2)
-        return
-    end
-    
-    bypassAntiCheat()
-    
-    autoRepairEnabled = true
-    notify("Auto Wire", "Started!", 2)
-    
-    autoRepairThread = task.spawn(function()
-        local Fuses = workspace:FindFirstChild("FuseBox")
-        if not Fuses then 
-            notify("Auto Wire", "FuseBox not found!", 2)
-            autoRepairEnabled = false
-            return
-        end
-        
-        while autoRepairEnabled do
-            for _, Wire in ipairs(Fuses.Wires:GetChildren()) do
-                local Sparkles = Wire:FindFirstChild("Sparkles")
-                if Sparkles and Sparkles.Enabled and not OneTime then
-                    OneTime = true
-                    pcall(function()
-                        Remotes.Repair:FireServer(Wire)
-                    end)
-                    task.wait(0.5)
-                    OneTime = false
-                end
-            end
-            task.wait(0.5)
-        end
-    end)
-end
-
-local function stopAutoRepair()
-    if not autoRepairEnabled then
-        notify("Auto Wire", "Not running!", 2)
-        return
-    end
-    
-    autoRepairEnabled = false
-    if autoRepairThread then
-        task.cancel(autoRepairThread)
-        autoRepairThread = nil
-    end
-    notify("Auto Wire", "Stopped!", 2)
-end
-
-local function repairWire(wireNumber)
-    local Fuses = workspace:FindFirstChild("FuseBox")
-    if Fuses then
-        local Wire = Fuses.Wires:FindFirstChild(tostring(wireNumber))
-        if Wire then
-            pcall(function()
-                Remotes.Repair:FireServer(Wire)
-            end)
-            notify("Auto Wire", "Fixing wire " .. wireNumber, 2)
-        end
-    end
-end
-
-local function repairAllWires()
-    for i = 1, 4 do
-        repairWire(i)
-        task.wait(0.3)
-    end
-    notify("Auto Wire", "All wires processed", 2)
-end
-
-FixTowerTab:CreateButton({
-    Name = "START Auto Wire",
-    Callback = function()
-        startAutoRepair()
-    end
-})
-
-FixTowerTab:CreateButton({
-    Name = "STOP Auto Wire",
-    Callback = function()
-        stopAutoRepair()
-    end
-})
-
-FixTowerTab:CreateButton({
-    Name = "────────── Manual ──────────",
-    Callback = function() end
-})
-
-FixTowerTab:CreateButton({
-    Name = "Repair Wire 1",
-    Callback = function()
-        repairWire(1)
-    end
-})
-
-FixTowerTab:CreateButton({
-    Name = "Repair Wire 2",
-    Callback = function()
-        repairWire(2)
-    end
-})
-
-FixTowerTab:CreateButton({
-    Name = "Repair Wire 3",
-    Callback = function()
-        repairWire(3)
-    end
-})
-
-FixTowerTab:CreateButton({
-    Name = "Repair Wire 4",
-    Callback = function()
-        repairWire(4)
-    end
-})
-
-FixTowerTab:CreateButton({
-    Name = "Repair All Wires",
-    Callback = function()
-        repairAllWires()
-    end
-})
 
 -- ========== NIGHT 2 TAB ==========
 local panelFixRunning = false
@@ -2342,3 +2141,244 @@ for _, itemName in ipairs(itemNames) do
         end
     })
 end
+
+-- ========== FIX TOWER TAB (AUTO WIRE) ==========
+-- Исправленный Auto Wire с одной кнопкой
+local autoRepairEnabled = false
+local autoRepairThread = nil
+
+local RS = game:GetService("ReplicatedStorage")
+local Remotes = RS:FindFirstChild("Remotes")
+
+local function repairWire(wire)
+    if not wire then return false end
+    local success, result = pcall(function()
+        if Remotes and Remotes:FindFirstChild("Repair") then
+            Remotes.Repair:FireServer(wire)
+            return true
+        else
+            -- Пробуем другие возможные названия ремоута
+            local repairRemote = RS:FindFirstChild("Repair") or RS:FindFirstChild("FixWire") or RS:FindFirstChild("Fix")
+            if repairRemote then
+                repairRemote:FireServer(wire)
+                return true
+            end
+        end
+        return false
+    end)
+    return success and result or false
+end
+
+local function toggleAutoRepair()
+    if autoRepairEnabled then
+        -- Выключаем
+        autoRepairEnabled = false
+        if autoRepairThread then
+            task.cancel(autoRepairThread)
+            autoRepairThread = nil
+        end
+        notify("Auto Wire", "Auto Fix Wire OFF", 2)
+    else
+        -- Включаем
+        autoRepairEnabled = true
+        notify("Auto Wire", "Auto Fix Wire ON", 2)
+        
+        autoRepairThread = task.spawn(function()
+            while autoRepairEnabled do
+                local Fuses = workspace:FindFirstChild("FuseBox")
+                if Fuses then
+                    local Wires = Fuses:FindFirstChild("Wires")
+                    if Wires then
+                        for _, wire in ipairs(Wires:GetChildren()) do
+                            if not autoRepairEnabled then break end
+                            
+                            -- Проверяем, сломана ли проводка
+                            local isBroken = false
+                            local sparkles = wire:FindFirstChild("Sparkles")
+                            if sparkles and sparkles:IsA("ParticleEmitter") then
+                                isBroken = sparkles.Enabled
+                            elseif sparkles and sparkles:IsA("BoolValue") then
+                                isBroken = sparkles.Value == true
+                            elseif wire:FindFirstChild("Broken") then
+                                isBroken = true
+                            end
+                            
+                            -- Альтернативная проверка
+                            if not isBroken then
+                                for _, child in pairs(wire:GetChildren()) do
+                                    if child.Name:lower():find("spark") or child.Name:lower():find("broken") then
+                                        if child:IsA("BoolValue") and child.Value == true then
+                                            isBroken = true
+                                        elseif child:IsA("ParticleEmitter") and child.Enabled then
+                                            isBroken = true
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            if isBroken then
+                                repairWire(wire)
+                                task.wait(0.3)
+                            end
+                        end
+                    end
+                end
+                task.wait(0.5)
+            end
+        end)
+    end
+end
+
+
+
+-- ========== FIX TOWER TAB (AUTO WIRE) ==========
+-- Исправленный Auto Wire (рабочая версия из Fluent скрипта)
+local autoWireEnabled = false
+local autoWireThread = nil
+
+local RS = game:GetService("ReplicatedStorage")
+local Remotes = RS:FindFirstChild("Remotes")
+
+local function toggleAutoWire()
+    if autoWireEnabled then
+        -- Выключаем
+        autoWireEnabled = false
+        if autoWireThread then
+            task.cancel(autoWireThread)
+            autoWireThread = nil
+        end
+        notify("Auto Wire", "Auto Fix Wire OFF", 2)
+    else
+        -- Включаем
+        autoWireEnabled = true
+        notify("Auto Wire", "Auto Fix Wire ON", 2)
+        
+        autoWireThread = task.spawn(function()
+            while autoWireEnabled do
+                local Fuses = workspace:FindFirstChild("FuseBox")
+                if Fuses then
+                    local Wires = Fuses:FindFirstChild("Wires")
+                    if Wires then
+                        for _, Wire in ipairs(Wires:GetChildren()) do
+                            if not autoWireEnabled then break end
+                            
+                            local Sparkles = Wire:FindFirstChild("Sparkles")
+                            if Sparkles and Sparkles.Enabled then
+                                pcall(function()
+                                    if Remotes and Remotes:FindFirstChild("ClickWire") then
+                                        Remotes.ClickWire:FireServer(Wire)
+                                    elseif Remotes and Remotes:FindFirstChild("Repair") then
+                                        Remotes.Repair:FireServer(Wire)
+                                    end
+                                end)
+                                task.wait(0.5)
+                            end
+                        end
+                    end
+                end
+                task.wait(0.5)
+            end
+        end)
+    end
+end
+
+-- Создаём кнопку Auto Fix Wire (одна кнопка для включения/выключения)
+FixTowerTab:CreateButton({
+    Name = "Auto Fix Wire",
+    Callback = function()
+        toggleAutoWire()
+    end
+})
+
+-- ========== MISC TAB (НОВАЯ ВКЛАДКА) ==========
+local MiscTab = Window:CreateTab("misc", 4483362458)
+
+-- Infinity Hunger
+MiscTab:CreateButton({
+    Name = "Infinity Hunger",
+    Callback = function()
+        local success = pcall(function()
+            local player = game.Players.LocalPlayer
+            local statusUI = player.PlayerGui:FindFirstChild("StatusUI")
+            if statusUI then
+                local foodBG = statusUI:FindFirstChild("FoodBG")
+                if foodBG then
+                    foodBG.Visible = false
+                end
+            end
+            local replicatedStorage = game:GetService("ReplicatedStorage")
+            local gameState = replicatedStorage:FindFirstChild("GameState")
+            if gameState then
+                local weirdStrict = gameState:FindFirstChild("WeirdStrict")
+                if weirdStrict then
+                    weirdStrict.Value = false
+                end
+                local totalModifiers = gameState:FindFirstChild("TotalModifiers")
+                if totalModifiers then
+                    totalModifiers.Value = 0
+                end
+            end
+        end)
+        if success then
+            notify("Infinity Hunger", "Enabled", 2)
+        else
+            notify("Infinity Hunger", "Failed to enable", 2)
+        end
+    end
+})
+
+-- Remove All Barriers
+MiscTab:CreateButton({
+    Name = "Remove All Barriers",
+    Callback = function()
+        local success = pcall(function()
+            local doors = workspace:FindFirstChild("Doors")
+            if doors then
+                local removed = 0
+                for _, closet in pairs(doors:GetChildren()) do
+                    if closet.Name == "Closet" and closet:FindFirstChild("Ignore") then
+                        closet.Ignore:Destroy()
+                        removed = removed + 1
+                    end
+                end
+                notify("Barriers", "Removed " .. removed .. " closet barriers", 2)
+            else
+                notify("Barriers", "Doors folder not found", 2)
+            end
+        end)
+
+        if not success then
+            notify("Barriers", "Failed to remove barriers", 2)
+        end
+    end
+})
+
+-- Infinity Yield
+MiscTab:CreateButton({
+    Name = "Infinity Yield",
+    Callback = function()
+        notify("Infinity Yield", "Loading...", 2)
+        local success, err = pcall(function()
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
+        end)
+        if success then
+            notify("Infinity Yield", "Loaded successfully!", 2)
+        else
+            notify("Infinity Yield", "Error: " .. tostring(err), 3)
+        end
+    end
+})
+
+-- Разделитель
+MiscTab:CreateButton({
+    Name = "────────── Other ──────────",
+    Callback = function() end
+})
+
+-- Info кнопка
+MiscTab:CreateButton({
+    Name = "Info",
+    Callback = function()
+        notify("Info", "script ZOVCOPTER by NAGIEV", 5)
+    end
+})
