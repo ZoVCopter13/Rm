@@ -194,7 +194,7 @@ local function generateRandomName()
 end
 
 local ButtonRenameKick = Tab:CreateButton({
-   Name = "Rename Kick Remote",
+   Name = "anticheat bypass",
    Callback = function()
        local success = pcall(function()
            local replicatedStorage = game:GetService("ReplicatedStorage")
@@ -2290,8 +2290,96 @@ FixTowerTab:CreateButton({
     end
 })
 
--- ========== MISC TAB (НОВАЯ ВКЛАДКА) ==========
+-- ========== MISC TAB ==========
 local MiscTab = Window:CreateTab("misc", 4483362458)
+
+-- ========== MONSTER NOTIFY (НОВЫЙ) ==========
+local monsterTrackingEnabled = false
+local monsterTrackingThread = nil
+local trackedMonsters = {}
+
+local MONSTER_NAMES = {
+    "Mutant", "WeirdDad", "Winterhorn", "Intruder", "DoorMonster"
+}
+
+local function isMonster(model)
+    for _, name in ipairs(MONSTER_NAMES) do
+        if model.Name == name then
+            return true
+        end
+    end
+    return false
+end
+
+local function scanWorkspaceForMonsters()
+    for _, descendant in pairs(workspace:GetDescendants()) do
+        if descendant:IsA("Model") and isMonster(descendant) and not trackedMonsters[descendant.Name] then
+            trackedMonsters[descendant.Name] = true
+            if descendant.Name == "Intruder" then
+                notify("Intruder in closet", "", 3)
+            else
+                notify("Monster Spawned", "", 3)
+            end
+        end
+    end
+end
+
+local function startMonsterTracking()
+    if monsterTrackingEnabled then return end
+    monsterTrackingEnabled = true
+    trackedMonsters = {}
+    scanWorkspaceForMonsters()
+    
+    local addedConn = workspace.DescendantAdded:Connect(function(descendant)
+        if monsterTrackingEnabled and descendant:IsA("Model") and isMonster(descendant) and not trackedMonsters[descendant.Name] then
+            trackedMonsters[descendant.Name] = true
+            if descendant.Name == "Intruder" then
+                notify("Intruder in closet", "", 3)
+            else
+                notify("Monster Spawned", "", 3)
+            end
+        end
+    end)
+    
+    local removingConn = workspace.DescendantRemoving:Connect(function(descendant)
+        if monsterTrackingEnabled and descendant:IsA("Model") and isMonster(descendant) and trackedMonsters[descendant.Name] then
+            trackedMonsters[descendant.Name] = nil
+            notify("Monster Despawned", "", 3)
+        end
+    end)
+    
+    monsterTrackingThread = {addedConn, removingConn}
+    notify("Monster Notify", "Tracking ENABLED", 2)
+end
+
+local function stopMonsterTracking()
+    if not monsterTrackingEnabled then return end
+    monsterTrackingEnabled = false
+    if monsterTrackingThread then
+        for _, conn in ipairs(monsterTrackingThread) do
+            conn:Disconnect()
+        end
+        monsterTrackingThread = nil
+    end
+    trackedMonsters = {}
+    notify("Monster Notify", "Tracking DISABLED", 2)
+end
+
+local function toggleMonsterNotify()
+    if monsterTrackingEnabled then
+        stopMonsterTracking()
+    else
+        startMonsterTracking()
+    end
+end
+
+-- Кнопка Monster Notify
+MiscTab:CreateButton({
+    Name = "Monster Notify",
+    Callback = function()
+        toggleMonsterNotify()
+    end
+})
 
 -- Infinity Hunger
 MiscTab:CreateButton({
@@ -2346,7 +2434,6 @@ MiscTab:CreateButton({
                 notify("Barriers", "Doors folder not found", 2)
             end
         end)
-
         if not success then
             notify("Barriers", "Failed to remove barriers", 2)
         end
@@ -2375,10 +2462,10 @@ MiscTab:CreateButton({
     Callback = function() end
 })
 
--- Info кнопка
+-- Info
 MiscTab:CreateButton({
     Name = "Info",
     Callback = function()
         notify("Info", "script ZOVCOPTER by NAGIEV", 5)
     end
-})
+})a
