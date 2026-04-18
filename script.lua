@@ -2468,4 +2468,4 @@ MiscTab:CreateButton({
     Callback = function()
         notify("Info", "script ZOVCOPTER by NAGIEV", 5)
     end
-})a
+})
