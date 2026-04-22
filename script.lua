@@ -22,7 +22,7 @@ local Window = Rayfield:CreateWindow({
       Invite = "https://discord.gg/Fqkp4xtMty",
       RememberJoins = false
    },
-   KeySystem = true,
+   KeySystem = false,
    KeySettings = {
       Title = "RM key system",
       Subtitle = "Key System",
