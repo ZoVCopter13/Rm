@@ -1,74 +1,52 @@
--- Snake Game v4.0 (с настраиваемым Keybind для меню)
--- Управление стрелками через ContextActionService, открытие/закрытие окна по клавише (по умолчанию K, можно сменить)
+-- Snake Game v6.0 (плавное движение, регулировка скорости, keybind R для рестарта)
+-- Открыть/закрыть окно: K. Перезапуск: R или кнопка Restart. Скорость регулируется кнопками +/-.
 
 local Players = game:GetService("Players")
-local ContextActionService = game:GetService("ContextActionService")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService") -- для смены keybind
+local TweenService = game:GetService("TweenService")
+local ContextActionService = game:GetService("ContextActionService")
 local player = Players.LocalPlayer
 
--- ----- Настройки сохранения (через writefile) -----
-local SAVE_FOLDER = "SnakeGame"
-local SAVE_FILE = "config.json"
-local defaultKeybind = "K"
-local menuKeybind = defaultKeybind
+-- Конфигурация
+local GRID_SIZE = 20
+local CELL_SIZE = 25
+local FIELD_WIDTH = GRID_SIZE * CELL_SIZE
+local FIELD_HEIGHT = GRID_SIZE * CELL_SIZE
+local ANIMATION_DURATION = 0.05        -- длительность анимации перемещения (сек)
 
-local function saveConfig()
-    if not writefile then return end
-    pcall(function()
-        if not isfolder(SAVE_FOLDER) then makefolder(SAVE_FOLDER) end
-        local data = { menuKeybind = menuKeybind }
-        writefile(SAVE_FOLDER .. "/" .. SAVE_FILE, game:GetService("HttpService"):JSONEncode(data))
-    end)
+-- Скорость (интервал шага)
+local speedLevel = 5                   -- от 1 до 10
+local function getStepInterval()
+    -- скорость 1 -> 0.2 сек, скорость 10 -> 0.05 сек
+    return 0.05 + (0.15 * (11 - speedLevel) / 10)
 end
+local STEP_INTERVAL = getStepInterval()
 
-local function loadConfig()
-    if not readfile then return end
-    pcall(function()
-        local data = readfile(SAVE_FOLDER .. "/" .. SAVE_FILE)
-        if data then
-            local decoded = game:GetService("HttpService"):JSONDecode(data)
-            if decoded and decoded.menuKeybind then
-                menuKeybind = decoded.menuKeybind
-            end
-        end
-    end)
-end
-loadConfig()
-
--- ----- GUI -----
+-- GUI
 local gui = Instance.new("ScreenGui")
 gui.Name = "SnakeGame"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
--- Константы поля
-local GRID_SIZE = 20
-local CELL_SIZE = 25
-local FIELD_WIDTH = GRID_SIZE * CELL_SIZE
-local FIELD_HEIGHT = GRID_SIZE * CELL_SIZE
-
--- Основное окно
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, FIELD_WIDTH + 100, 0, FIELD_HEIGHT + 100)
-mainFrame.Position = UDim2.new(0.5, -(FIELD_WIDTH+100)/2, 0.5, -(FIELD_HEIGHT+100)/2)
+mainFrame.Size = UDim2.new(0, FIELD_WIDTH + 100, 0, FIELD_HEIGHT + 130) -- немного больше для панели скорости
+mainFrame.Position = UDim2.new(0.5, -(FIELD_WIDTH+100)/2, 0.5, -(FIELD_HEIGHT+130)/2)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 mainFrame.BackgroundTransparency = 0
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = gui
 
--- Заголовок
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.Position = UDim2.new(0, 0, 0, 0)
 title.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-title.Text = "Snake Game (arrow keys)"
+title.Text = "Snake Game (arrows, K hide, R restart)"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.Parent = mainFrame
 
--- Игровое поле
 local gameField = Instance.new("Frame")
 gameField.Size = UDim2.new(0, FIELD_WIDTH, 0, FIELD_HEIGHT)
 gameField.Position = UDim2.new(0.5, -FIELD_WIDTH/2, 0.5, -FIELD_HEIGHT/2 + 15)
@@ -77,10 +55,9 @@ gameField.BorderSizePixel = 1
 gameField.BorderColor3 = Color3.fromRGB(100, 100, 100)
 gameField.Parent = mainFrame
 
--- Счёт
-local scoreLabel = Instance.new("TextLabel")
+scoreLabel = Instance.new("TextLabel")
 scoreLabel.Size = UDim2.new(1, 0, 0, 30)
-scoreLabel.Position = UDim2.new(0, 0, 1, -30)
+scoreLabel.Position = UDim2.new(0, 0, 1, -60)
 scoreLabel.BackgroundTransparency = 1
 scoreLabel.Text = "Score: 0"
 scoreLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -88,36 +65,50 @@ scoreLabel.Font = Enum.Font.Gotham
 scoreLabel.TextSize = 16
 scoreLabel.Parent = mainFrame
 
+-- Панель скорости
+local speedFrame = Instance.new("Frame")
+speedFrame.Size = UDim2.new(0, 150, 0, 25)
+speedFrame.Position = UDim2.new(0, 10, 1, -35)
+speedFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+speedFrame.BorderSizePixel = 0
+speedFrame.Parent = mainFrame
+
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(0, 60, 1, 0)
+speedLabel.Position = UDim2.new(0, 0, 0, 0)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Text = "Speed: 5"
+speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.TextSize = 14
+speedLabel.Parent = speedFrame
+
+local speedMinus = Instance.new("TextButton")
+speedMinus.Size = UDim2.new(0, 25, 1, 0)
+speedMinus.Position = UDim2.new(0, 65, 0, 0)
+speedMinus.Text = "-"
+speedMinus.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
+speedMinus.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedMinus.Parent = speedFrame
+
+local speedPlus = Instance.new("TextButton")
+speedPlus.Size = UDim2.new(0, 25, 1, 0)
+speedPlus.Position = UDim2.new(0, 95, 0, 0)
+speedPlus.Text = "+"
+speedPlus.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
+speedPlus.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedPlus.Parent = speedFrame
+
 -- Кнопка рестарта
 local restartBtn = Instance.new("TextButton")
 restartBtn.Size = UDim2.new(0, 80, 0, 25)
-restartBtn.Position = UDim2.new(1, -85, 1, -30)
+restartBtn.Position = UDim2.new(1, -85, 1, -35)
 restartBtn.Text = "Restart"
 restartBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
 restartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 restartBtn.Parent = mainFrame
 
--- Кнопка смены Keybind
-local keybindBtn = Instance.new("TextButton")
-keybindBtn.Size = UDim2.new(0, 120, 0, 25)
-keybindBtn.Position = UDim2.new(1, -210, 1, -30)
-keybindBtn.Text = "Change Keybind"
-keybindBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
-keybindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-keybindBtn.Parent = mainFrame
-
--- Метка текущего Keybind
-local keybindLabel = Instance.new("TextLabel")
-keybindLabel.Size = UDim2.new(0, 120, 0, 25)
-keybindLabel.Position = UDim2.new(1, -210, 1, -60)
-keybindLabel.BackgroundTransparency = 1
-keybindLabel.Text = "Menu key: " .. menuKeybind
-keybindLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-keybindLabel.Font = Enum.Font.Gotham
-keybindLabel.TextSize = 12
-keybindLabel.Parent = mainFrame
-
--- --- Состояние игры ---
+-- Данные игры
 local snake = {}
 local snakeFrames = {}
 local foodPos = nil
@@ -126,10 +117,26 @@ local direction = "right"
 local nextDirection = "right"
 local gameRunning = false
 local score = 0
-local stepTime = 0.15
-local lastStep = 0
+local gameLoopTask = nil
+local activeTweens = {}
+local lastTime = 0
 
--- Функции игры
+-- Функция обновления скорости
+local function updateSpeedDisplay()
+    speedLabel.Text = "Speed: " .. speedLevel
+    STEP_INTERVAL = getStepInterval()
+end
+
+local function changeSpeed(delta)
+    local newSpeed = speedLevel + delta
+    if newSpeed >= 1 and newSpeed <= 10 then
+        speedLevel = newSpeed
+        updateSpeedDisplay()
+        -- перезапускать цикл не нужно, новый интервал подхватится в следующем шаге
+    end
+end
+
+-- Вспомогательные функции
 local function posToUDim2(x, y)
     return UDim2.new(0, (x-1) * CELL_SIZE, 0, (y-1) * CELL_SIZE)
 end
@@ -144,7 +151,35 @@ local function createSegment(x, y, color)
     return seg
 end
 
-local function updateSnakeVisuals()
+local function setPositionsInstant()
+    for i, seg in ipairs(snake) do
+        if snakeFrames[i] then
+            snakeFrames[i].Position = posToUDim2(seg.x, seg.y)
+        end
+    end
+end
+
+local function animateSnakeMove(oldSnake, newSnake)
+    for _, t in ipairs(activeTweens) do
+        if t and t.PlaybackState ~= Enum.PlaybackState.Completed then
+            t:Cancel()
+        end
+    end
+    activeTweens = {}
+    for i, newSeg in ipairs(newSnake) do
+        local oldSeg = oldSnake[i]
+        if oldSeg and (oldSeg.x ~= newSeg.x or oldSeg.y ~= newSeg.y) then
+            local frame = snakeFrames[i]
+            if frame then
+                local tween = TweenService:Create(frame, TweenInfo.new(ANIMATION_DURATION, Enum.EasingStyle.Linear), {Position = posToUDim2(newSeg.x, newSeg.y)})
+                tween:Play()
+                table.insert(activeTweens, tween)
+            end
+        end
+    end
+end
+
+local function rebuildVisuals()
     for _, f in ipairs(snakeFrames) do
         f:Destroy()
     end
@@ -239,51 +274,108 @@ local function stepGame()
         return
     end
 
+    local oldSnake = {}
+    for i, seg in ipairs(snake) do
+        oldSnake[i] = {x = seg.x, y = seg.y}
+    end
+
+    -- Добавляем новую голову
     table.insert(snake, 1, newHead)
     if not ate then
+        -- удаляем хвост
         table.remove(snake)
     else
+        -- увеличиваем счёт, не удаляем хвост
         score = score + 1
         scoreLabel.Text = "Score: " .. score
         if not spawnRandomFood() then return end
+        -- эффект еды
         if foodFrame then
             local oldColor = foodFrame.BackgroundColor3
             foodFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 100)
-            task.wait(0.05)
+            task.wait(0.03)
             if foodFrame then foodFrame.BackgroundColor3 = oldColor end
         end
+        -- При удлинении нужно добавить новый фрейм в конец (за хвостом) без пересоздания всех
+        -- Сначала определяем позицию нового хвоста (старый последний сегмент)
+        local lastSeg = snake[#snake]
+        local newTailPos = {x = lastSeg.x, y = lastSeg.y}
+        -- Добавляем новый фрейм в конец snakeFrames
+        local newFrame = createSegment(newTailPos.x, newTailPos.y, Color3.fromRGB(0, 150, 0))
+        table.insert(snakeFrames, newFrame)
+        -- Обновляем массив snake уже содержит новый хвост (этот же lastSeg, но для ясности)
+        -- Визуально новый сегмент появится на месте старого хвоста (так как хвост не удалялся, а мы добавили ещё один сегмент в конец)
+        -- Но после роста змейка удлиняется на 1, и новый сегмент должен быть на месте предыдущего хвоста.
+        -- Однако в логике после вставки головы и без удаления хвоста, snake уже имеет новый сегмент в конце (старый хвост остался, добавлен новый).
+        -- Нам нужно просто добавить фрейм в snakeFrames, и его позиция уже соответствует последнему сегменту (который мы только что добавили).
+        -- Так как мы не пересоздаём все фреймы, анимация головы и других сегментов не прерывается.
+        -- Но чтобы новый сегмент появился именно в конце, его позиция должна быть равна позиции последнего сегмента в snake.
+        -- У нас lastSeg — это как раз последний сегмент (старый хвост, который теперь не хвост, а предпоследний?).
+        -- В общем, проще просто пересоздать визуалы, но это вызовет рывок. Поэтому оставим как есть.
+        -- Альтернатива: не пересоздавать, а добавлять новый фрейм в конец и анимировать его появление.
+        newFrame.Position = posToUDim2(lastSeg.x, lastSeg.y)
+        -- Можно сделать анимацию появления (например, масштабирование), но для простоты оставим мгновенное появление.
     end
-    updateSnakeVisuals()
+
+    -- Если количество фреймов не совпадает (из-за роста), то мы уже добавили один фрейм вручную. Проверка:
+    if #snake ~= #snakeFrames and ate then
+        -- Этого не должно случиться, так как мы добавили фрейм. На всякий случай синхронизируем.
+        while #snakeFrames < #snake do
+            local lastSeg = snake[#snakeFrames+1]
+            local newF = createSegment(lastSeg.x, lastSeg.y, Color3.fromRGB(0, 150, 0))
+            table.insert(snakeFrames, newF)
+        end
+    elseif #snake ~= #snakeFrames and not ate then
+        -- При удалении хвоста (не рост) нужно удалить последний фрейм
+        if #snakeFrames > #snake then
+            local extra = table.remove(snakeFrames)
+            extra:Destroy()
+        end
+    end
+
+    -- Анимируем перемещение для всех сегментов (кроме нового, который и так на месте)
+    animateSnakeMove(oldSnake, snake)
 end
 
+-- Сброс игры
 local function resetGame()
     gameRunning = false
+    for _, t in ipairs(activeTweens) do
+        if t and t.PlaybackState ~= Enum.PlaybackState.Completed then
+            t:Cancel()
+        end
+    end
+    activeTweens = {}
     for _, f in ipairs(snakeFrames) do
         f:Destroy()
     end
     snakeFrames = {}
     if foodFrame then foodFrame:Destroy() end
     for _, child in ipairs(mainFrame:GetChildren()) do
-        if child:IsA("TextLabel") and child ~= title and child ~= scoreLabel and child ~= keybindLabel then
+        if child:IsA("TextLabel") and child ~= title and child ~= scoreLabel and child ~= speedLabel and child.Parent ~= speedFrame then
             child:Destroy()
         end
     end
+    local centerX = math.floor(GRID_SIZE/2)
+    local centerY = math.floor(GRID_SIZE/2)
     snake = {
-        {x = math.floor(GRID_SIZE/2), y = math.floor(GRID_SIZE/2)},
-        {x = math.floor(GRID_SIZE/2)-1, y = math.floor(GRID_SIZE/2)},
-        {x = math.floor(GRID_SIZE/2)-2, y = math.floor(GRID_SIZE/2)}
+        {x = centerX, y = centerY},
+        {x = centerX-1, y = centerY},
+        {x = centerX-2, y = centerY}
     }
     direction = "right"
     nextDirection = "right"
     score = 0
     scoreLabel.Text = "Score: 0"
-    gameRunning = true
-    updateSnakeVisuals()
+    rebuildVisuals()
+    setPositionsInstant()
     spawnRandomFood()
+    gameRunning = true
+    lastTime = os.clock()
 end
 
--- --- Управление змейкой (ContextActionService) ---
-local function handleSnakeAction(actionName, inputState, inputObject)
+-- Управление змейкой
+local function handleAction(actionName, inputState, inputObject)
     if inputState ~= Enum.UserInputState.Begin then return end
     local key = inputObject.KeyCode
     if key == Enum.KeyCode.Left and direction ~= "right" then
@@ -298,90 +390,18 @@ local function handleSnakeAction(actionName, inputState, inputObject)
     return Enum.ContextActionResult.Sink
 end
 
-ContextActionService:BindAction("SnakeMove", handleSnakeAction, false,
-    Enum.KeyCode.Left,
-    Enum.KeyCode.Right,
-    Enum.KeyCode.Up,
-    Enum.KeyCode.Down
+ContextActionService:BindAction("SnakeMove", handleAction, false,
+    Enum.KeyCode.Left, Enum.KeyCode.Right, Enum.KeyCode.Up, Enum.KeyCode.Down
 )
 
--- --- Управление видимостью GUI через кастомный Keybind ---
-local function toggleMenu()
-    gui.Enabled = not gui.Enabled
-end
-
--- Функция для обновления бинда (при смене клавиши)
-local menuBindConnection = nil
-local function rebindMenuKey()
-    if menuBindConnection then
-        ContextActionService:UnbindAction("MenuToggle")
-        menuBindConnection = nil
+-- Keybind для рестарта (R)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.R then
+        resetGame()
+    elseif input.KeyCode == Enum.KeyCode.K then
+        gui.Enabled = not gui.Enabled
     end
-    -- Привязываем новую клавишу через ContextActionService (чтобы не конфликтовать)
-    local keyEnum = Enum.KeyCode[menuKeybind]
-    if keyEnum then
-        local function menuAction(actionName, inputState, inputObject)
-            if inputState == Enum.UserInputState.Begin then
-                toggleMenu()
-            end
-            return Enum.ContextActionResult.Sink
-        end
-        ContextActionService:BindAction("MenuToggle", menuAction, false, keyEnum)
-    else
-        -- fallback на UserInputService, если Enum не найден
-        if menuBindConnection then menuBindConnection:Disconnect() end
-        menuBindConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if gameProcessed then return end
-            local keyName = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
-            if keyName == menuKeybind then
-                toggleMenu()
-            end
-        end)
-    end
-end
-
--- Смена Keybind через кнопку
-local waitingForKey = false
-keybindBtn.MouseButton1Click:Connect(function()
-    if waitingForKey then return end
-    waitingForKey = true
-    local tempLabel = Instance.new("TextLabel")
-    tempLabel.Size = UDim2.new(0, 200, 0, 30)
-    tempLabel.Position = UDim2.new(0.5, -100, 0.5, -80)
-    tempLabel.BackgroundColor3 = Color3.fromRGB(0,0,0)
-    tempLabel.BackgroundTransparency = 0.5
-    tempLabel.Text = "Press any key..."
-    tempLabel.TextColor3 = Color3.fromRGB(255,255,255)
-    tempLabel.Font = Enum.Font.Gotham
-    tempLabel.TextSize = 14
-    tempLabel.Parent = mainFrame
-    local connection
-    connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not waitingForKey then return end
-        if gameProcessed then return end
-        local key = input.KeyCode
-        if key ~= Enum.KeyCode.Unknown then
-            local keyName = tostring(key):gsub("Enum.KeyCode.", "")
-            menuKeybind = keyName
-            keybindLabel.Text = "Menu key: " .. menuKeybind
-            saveConfig()
-            rebindMenuKey()
-            waitingForKey = false
-            tempLabel:Destroy()
-            connection:Disconnect()
-            local confirm = Instance.new("TextLabel")
-            confirm.Size = UDim2.new(0, 200, 0, 30)
-            confirm.Position = UDim2.new(0.5, -100, 0.5, -80)
-            confirm.BackgroundColor3 = Color3.fromRGB(0,0,0)
-            confirm.BackgroundTransparency = 0.5
-            confirm.Text = "Keybind set to " .. keyName
-            confirm.TextColor3 = Color3.fromRGB(100,255,100)
-            confirm.Font = Enum.Font.Gotham
-            confirm.TextSize = 14
-            confirm.Parent = mainFrame
-            task.delay(2, function() confirm:Destroy() end)
-        end
-    end)
 end)
 
 -- Кнопка рестарта
@@ -389,18 +409,30 @@ restartBtn.MouseButton1Click:Connect(function()
     resetGame()
 end)
 
--- Игровой цикл
-local lastTime = os.clock()
-RunService.RenderStepped:Connect(function()
-    if not gameRunning then return end
-    local now = os.clock()
-    if now - lastTime >= stepTime then
-        stepGame()
-        lastTime = now
-    end
+-- Кнопки скорости
+speedMinus.MouseButton1Click:Connect(function()
+    changeSpeed(-1)
+end)
+speedPlus.MouseButton1Click:Connect(function()
+    changeSpeed(1)
 end)
 
--- Запуск игры
+-- Игровой цикл
+local function gameLoop()
+    lastTime = os.clock()
+    while true do
+        if gameRunning then
+            local now = os.clock()
+            if now - lastTime >= STEP_INTERVAL then
+                stepGame()
+                lastTime = now
+            end
+        end
+        RunService.RenderStepped:Wait()
+    end
+end
+task.spawn(gameLoop)
+
+-- Запуск
 resetGame()
-rebindMenuKey()
 gui.Enabled = true
