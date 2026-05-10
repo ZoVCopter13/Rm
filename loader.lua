@@ -1,9 +1,9 @@
--- ========== RM LOADER (С ЗАПОМИНАНИЕМ КЛЮЧА) ==========
--- Сохраняет ключ в файл, при повторном запуске проверяет сохранённый ключ
+-- ==========RM LOADER==========
+
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- Создаём окно лоадера
+
 local LoaderWindow = Rayfield:CreateWindow({
     Name = "RM Loader",
     Icon = 0,
@@ -24,7 +24,7 @@ local LoaderWindow = Rayfield:CreateWindow({
 
 local MainTab = LoaderWindow:CreateTab("Key System", 4483362458)
 
--- Функция уведомлений
+
 local function notify(title, content, duration)
     Rayfield:Notify({
         Title = title,
@@ -33,7 +33,7 @@ local function notify(title, content, duration)
     })
 end
 
--- Проверяем, поддерживает ли экзекутор readfile/writefile
+
 local function canSave()
     pcall(function()
         writefile("test.txt", "test")
@@ -45,7 +45,7 @@ end
 local saveSupported = canSave()
 local SAVE_FILE = "RM_Key.txt"
 
--- Функция для сохранения ключа
+
 local function saveKey(key)
     if saveSupported then
         pcall(function()
@@ -54,7 +54,7 @@ local function saveKey(key)
     end
 end
 
--- Функция для загрузки сохранённого ключа
+
 local function loadSavedKey()
     if saveSupported then
         local success, result = pcall(function()
@@ -67,7 +67,7 @@ local function loadSavedKey()
     return nil
 end
 
--- Функция для удаления сохранённого ключа (если нужно)
+
 local function deleteSavedKey()
     if saveSupported then
         pcall(function()
@@ -76,7 +76,7 @@ local function deleteSavedKey()
     end
 end
 
--- Функция запуска основного скрипта
+
 local function loadMainScript()
     notify("Loading", "Starting main script...", 2)
     task.wait(0.5)
@@ -90,11 +90,10 @@ local function loadMainScript()
     end
 end
 
--- Проверка ключа
+
 local function validateKey(key)
-    -- Здесь можно изменить условие проверки ключа
-    -- Например: проверка через удалённый сервер, сравнение с массивом ключей и т.д.
-    local validKeys = {"da"} -- Список валидных ключей
+
+    local validKeys = {"da"} 
     for _, validKey in ipairs(validKeys) do
         if key == validKey then
             return true
@@ -103,11 +102,11 @@ local function validateKey(key)
     return false
 end
 
--- Основная функция проверки и запуска
+
 local function checkAndRun()
     local savedKey = loadSavedKey()
     if savedKey and validateKey(savedKey) then
-        -- Ключ есть и он правильный -> запускаем сразу
+  
         notify("Auto-Login", "Saved key found! Loading main script...", 2)
         loadMainScript()
         return true
@@ -115,15 +114,15 @@ local function checkAndRun()
     return false
 end
 
--- Пытаемся запустить с сохранённым ключом
+
 if checkAndRun() then
-    return -- Скрипт запущен, выходим
+    return 
 end
 
--- Если сохранённого ключа нет или он невалидный, показываем интерфейс ввода
+
 notify("RM Loader", "Enter your key to continue", 3)
 
--- Поле для ввода ключа
+
 local KeyInput = MainTab:CreateInput({
     Name = "Enter Key",
     PlaceholderText = "Введите ключ...",
@@ -133,13 +132,13 @@ local KeyInput = MainTab:CreateInput({
     end
 })
 
--- Кнопка активации
+
 MainTab:CreateButton({
     Name = "Activate Script",
     Callback = function()
         local key = _G.EnteredKey or ""
         if validateKey(key) then
-            saveKey(key) -- Сохраняем правильный ключ
+            saveKey(key) 
             notify("Success", "Key accepted! Loading main script...", 2)
             loadMainScript()
         else
@@ -148,7 +147,7 @@ MainTab:CreateButton({
     end
 })
 
--- Кнопка для сброса сохранённого ключа (на случай, если ключ протух)
+
 MainTab:CreateButton({
     Name = "Reset Saved Key",
     Callback = function()
@@ -157,7 +156,7 @@ MainTab:CreateButton({
     end
 })
 
--- Информация
+
 MainTab:CreateButton({
     Name = "Info",
     Callback = function()
